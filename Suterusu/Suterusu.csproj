@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{7CEC4F4B-A2BA-4827-B463-C7CE8E623139}</ProjectGuid>
+    <ProjectTypeGuids>{60DC8134-EBA5-43B8-BCC9-BB4BC16C2548};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>Suterusu</RootNamespace>
+    <AssemblyName>Suterusu</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <RuntimeIdentifiers>win</RuntimeIdentifiers>
+    <FileAlignment>512</FileAlignment>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <Deterministic>true</Deterministic>
+    <NuGetPackageImportStamp>
+    </NuGetPackageImportStamp>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Framework references -->
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Xml" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="Microsoft.CSharp" />
+    <!-- WinForms -->
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Drawing" />
+    <!-- WPF -->
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+    <Reference Include="WindowsBase" />
+    <Reference Include="System.Xaml" />
+    <Reference Include="UIAutomationProvider" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json">
+      <Version>13.0.3</Version>
+    </PackageReference>
+    <PackageReference Include="NLog">
+      <Version>6.1.2</Version>
+    </PackageReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Application\HeadlessApplicationContext.cs" />
+    <Compile Include="Application\SettingsWindowManager.cs" />
+    <Compile Include="Bootstrap\ConsoleManager.cs" />
+    <Compile Include="Bootstrap\StartupOptions.cs" />
+    <Compile Include="Configuration\AppConfig.cs" />
+    <Compile Include="Configuration\ConfigManager.cs" />
+    <Compile Include="Configuration\NotificationMode.cs" />
+    <Compile Include="Hooks\KeyboardHook.cs" />
+    <Compile Include="Interop\DwmInterop.cs" />
+    <Compile Include="Interop\NativeMethods.cs" />
+    <Compile Include="Models\AiResponseResult.cs" />
+    <Compile Include="Models\AiSingleAttemptResult.cs" />
+    <Compile Include="Models\ChatCompletionRequest.cs" />
+    <Compile Include="Models\ChatCompletionResponse.cs" />
+    <Compile Include="Models\ChatMessage.cs" />
+    <Compile Include="Models\ClipboardReadResult.cs" />
+    <Compile Include="Models\ClipboardWriteResult.cs" />
+    <Compile Include="Models\EndpointPreset.cs" />
+    <Compile Include="Models\GlobalHotkey.cs" />
+    <Compile Include="Models\HotkeyActionResult.cs" />
+    <Compile Include="Models\QueuedClipboardRequest.cs" />
+    <Compile Include="Models\SaveConfigResult.cs" />
+    <Compile Include="Notifications\CircleDotNotificationService.cs" />
+    <Compile Include="Notifications\FlashWindowNotificationService.cs" />
+    <Compile Include="Notifications\INotificationService.cs" />
+    <Compile Include="Notifications\NotificationServiceFactory.cs" />
+    <Compile Include="Notifications\NullNotificationService.cs" />
+    <Compile Include="Program.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Configuration\JsonSettings.cs" />
+    <Compile Include="Services\AiClient.cs" />
+    <Compile Include="Services\ChatHistory.cs" />
+    <Compile Include="Services\ClipboardAiController.cs" />
+    <Compile Include="Services\ClipboardService.cs" />
+    <Compile Include="Services\ILogger.cs" />
+    <Compile Include="Services\NLogLogger.cs" />
+    <Compile Include="UI\SettingsWindow.xaml.cs">
+      <DependentUpon>SettingsWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+  </ItemGroup>
+  <ItemGroup>
+    <Page Include="UI\SettingsWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="App.config" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>
