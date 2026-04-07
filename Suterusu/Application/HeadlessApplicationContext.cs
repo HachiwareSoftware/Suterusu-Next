@@ -39,7 +39,7 @@ namespace Suterusu.Application
             // --- Build services ---
             _clipboardService    = new ClipboardService(new NLogLogger("Suterusu.Clipboard"));
             _aiClient            = new AiClient(new NLogLogger("Suterusu.AI"));
-            _notificationService = NotificationServiceFactory.Create(_config.NotificationMode);
+            _notificationService = NotificationServiceFactory.Create(_config);
             _chatHistory         = new ChatHistory(_config.SystemPrompt, _config.HistoryLimit);
 
             _controller = new ClipboardAiController(
@@ -93,7 +93,7 @@ namespace Suterusu.Application
                     notificationMode = "Nothing";
                     break;
                 default:
-                    notificationMode = "Flash Window";
+                    notificationMode = $"Flash Window (target={_config.FlashWindowTarget}, duration={_config.FlashWindowDurationMs}ms)";
                     break;
             }
 

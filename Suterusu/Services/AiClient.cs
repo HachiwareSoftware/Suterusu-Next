@@ -51,26 +51,21 @@ namespace Suterusu.Services
                 cancellationToken.ThrowIfCancellationRequested();
                 _logger.Info($"Trying model: {model}");
 
-                _logger.Debug($"attempting model {model}");
-
                 AiSingleAttemptResult attempt = await SendToModelAsync(
                     model, config, messages, cancellationToken).ConfigureAwait(false);
 
                 if (attempt.Success)
                 {
                     _logger.Info($"Success with model: {model}");
-                    _logger.Debug($"model {model} succeeded, returning content");
                     return AiResponseResult.Ok(attempt.Content, model);
                 }
 
                 _logger.Warn($"Model {model} failed: {attempt.Error}");
-                _logger.Debug($"model {model} failed with: {attempt.Error}");
                 errors.Add($"[{model}] {attempt.Error}");
             }
 
             string summary = "All models failed: " + string.Join("; ", errors);
             _logger.Error(summary);
-            _logger.Debug("all models exhausted");
             return AiResponseResult.Fail(summary);
         }
 
@@ -110,7 +105,7 @@ namespace Suterusu.Services
                             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", config.ApiKey);
                     }
 
-                    _logger.Debug($"sending HTTP request to {url} with auth={hasApiKey}");;
+                    _logger.Debug($"sending HTTP request to {url} with auth={hasApiKey}");
                     using (HttpResponseMessage response = await _httpClient
                         .SendAsync(httpRequest, cancellationToken).ConfigureAwait(false))
                     {

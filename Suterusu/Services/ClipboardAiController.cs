@@ -61,7 +61,6 @@ namespace Suterusu.Services
         public void EnqueueClipboardSend()
         {
             _pendingRequests.Enqueue(new QueuedClipboardRequest());
-            _logger.Debug($"queued, depth now {_pendingRequests.Count}");
             _logger.Info($"Request enqueued. Queue depth: {_pendingRequests.Count}");
             EnsureProcessorRunning();
         }
@@ -109,7 +108,6 @@ namespace Suterusu.Services
             if (Interlocked.CompareExchange(ref _processorRunning, 1, 0) == 0)
             {
                 _logger.Debug("starting background task");
-                // Start background processing
                 Task.Run(() => ProcessQueueAsync(_cts.Token));
             }
             else
@@ -163,9 +161,8 @@ namespace Suterusu.Services
             }
         }
 
-        private async Task<HotkeyActionResult> ExecuteClipboardSendAsync(CancellationToken cancellationToken)
+        private async Task ExecuteClipboardSendAsync(CancellationToken cancellationToken)
         {
-            _logger.Debug("starting clipboard send workflow");
             _logger.Info("Processing clipboard send request.");
 
             // Read clipboard
@@ -175,11 +172,10 @@ namespace Suterusu.Services
             {
                 _logger.Warn($"Clipboard read failed: {read.Error}");
                 _notifications.NotifyFailure();
-                return HotkeyActionResult.Fail(read.Error);
+                return;
             }
 
             string userText = read.Text;
-            _logger.Debug($"read {userText.Length} chars from clipboard");
             _logger.Info($"Clipboard read OK ({userText.Length} chars).");
 
             // Build messages
@@ -197,7 +193,7 @@ namespace Suterusu.Services
             {
                 _logger.Error($"AI request failed: {aiResult.Error}");
                 _notifications.NotifyFailure();
-                return HotkeyActionResult.Fail(aiResult.Error);
+                return;
             }
 
             // Record last response (F8 will write to clipboard)
@@ -206,8 +202,6 @@ namespace Suterusu.Services
 
             _logger.Info($"AI response received via model {aiResult.ModelUsed}. Press F8 to copy to clipboard.");
             _notifications.NotifySuccess();
-            _logger.Debug("completed successfully");
-            return HotkeyActionResult.Ok();
         }
 
         public void Dispose()

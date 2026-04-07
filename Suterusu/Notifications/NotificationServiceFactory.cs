@@ -4,12 +4,14 @@ namespace Suterusu.Notifications
 {
     public static class NotificationServiceFactory
     {
-        public static INotificationService Create(NotificationMode mode)
+        public static INotificationService Create(AppConfig config)
         {
-            switch (mode)
+            switch (config.NotificationMode)
             {
                 case NotificationMode.FlashWindow:
-                    return new FlashWindowNotificationService();
+                    return new FlashWindowNotificationService(
+                        config.FlashWindowTarget,
+                        config.FlashWindowDurationMs);
                 case NotificationMode.CircleDot:
                     return new CircleDotNotificationService();
                 case NotificationMode.Nothing:

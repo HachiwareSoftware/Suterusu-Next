@@ -17,16 +17,30 @@ namespace Suterusu.Configuration
 
         public NotificationMode NotificationMode { get; set; }
 
+        /// <summary>
+        /// Process name (or partial name) of the window to flash, e.g. "Chrome".
+        /// Use "All" to flash every visible window, or "None" / empty to disable.
+        /// </summary>
+        public string FlashWindowTarget { get; set; }
+
+        /// <summary>
+        /// How long (in milliseconds) to let the flash run before sending FLASHW_STOP.
+        /// Mirrors the original 1600 ms hard-coded delay.
+        /// </summary>
+        public int FlashWindowDurationMs { get; set; }
+
         public static AppConfig CreateDefault()
         {
             return new AppConfig
             {
-                ApiBaseUrl       = "https://api.openai.com/v1/chat/completions",
-                ApiKey           = "",
-                Models           = new List<string> { "gpt-4o-mini" },
-                SystemPrompt     = "You are a helpful assistant.",
-                HistoryLimit     = 10,
-                NotificationMode = NotificationMode.FlashWindow
+                ApiBaseUrl            = "https://api.openai.com/v1/chat/completions",
+                ApiKey                = "",
+                Models                = new List<string> { "gpt-5.4-mini" },
+                SystemPrompt          = "You are a helpful assistant.",
+                HistoryLimit          = 10,
+                NotificationMode      = NotificationMode.FlashWindow,
+                FlashWindowTarget     = "Chrome",
+                FlashWindowDurationMs = 1600
             };
         }
 
@@ -47,7 +61,7 @@ namespace Suterusu.Configuration
                 .ToList();
 
             if (Models.Count == 0)
-                Models.Add("gpt-4o-mini");
+                Models.Add("gpt-5.4-mini");
 
             if (string.IsNullOrWhiteSpace(SystemPrompt))
                 SystemPrompt = "You are a helpful assistant.";
@@ -57,6 +71,15 @@ namespace Suterusu.Configuration
 
             if (HistoryLimit > 100)
                 HistoryLimit = 100;
+
+            if (string.IsNullOrWhiteSpace(FlashWindowTarget))
+                FlashWindowTarget = "Chrome";
+
+            if (FlashWindowDurationMs <= 0)
+                FlashWindowDurationMs = 1600;
+
+            if (FlashWindowDurationMs > 10000)
+                FlashWindowDurationMs = 10000;
 
             return this;
         }

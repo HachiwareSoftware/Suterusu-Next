@@ -8,6 +8,9 @@ namespace Suterusu.Interop
         // Hook types
         public const int WH_KEYBOARD_LL = 13;
 
+        // Process access rights
+        public const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+
         // Window messages
         public const int WM_KEYDOWN    = 0x0100;
         public const int WM_KEYUP      = 0x0101;
@@ -66,6 +69,9 @@ namespace Suterusu.Interop
 
         public delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
 
+        /// <summary>Callback delegate for EnumWindows / EnumChildWindows.</summary>
+        public delegate bool EnumWindowsProc(IntPtr hwnd, IntPtr lParam);
+
         [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
         public static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
 
@@ -87,6 +93,38 @@ namespace Suterusu.Interop
 
         [DllImport("user32.dll")]
         public static extern IntPtr GetForegroundWindow();
+
+        /// <summary>Enumerates all top-level windows on the desktop.</summary>
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool IsWindowVisible(IntPtr hWnd);
+
+        /// <summary>Retrieves the process ID that created the specified window.</summary>
+        [DllImport("user32.dll")]
+        public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern IntPtr OpenProcess(uint dwDesiredAccess, bool bInheritHandle, uint dwProcessId);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool CloseHandle(IntPtr hObject);
+
+        /// <summary>
+        /// Retrieves the full name of the executable image for the specified process.
+        /// Uses the ANSI variant to match the reference C++ implementation.
+        /// </summary>
+        [DllImport("kernel32.dll", CharSet = CharSet.Ansi, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool QueryFullProcessImageNameA(
+            IntPtr hProcess,
+            uint   dwFlags,
+            System.Text.StringBuilder lpExeName,
+            ref uint lpdwSize);
 
         [DllImport("user32.dll")]
         [return: MarshalAs(UnmanagedType.Bool)]

@@ -68,11 +68,6 @@ namespace Suterusu.Configuration
             }
         }
 
-        public AppConfig Reload()
-        {
-            return LoadOrCreateDefault();
-        }
-
         private void SaveInternal(AppConfig config)
         {
             string json = JsonSettings.Serialize(config);

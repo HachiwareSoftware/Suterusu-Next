@@ -223,9 +223,20 @@
 
                         <TextBlock Style="{StaticResource LabelStyle}" Text="Notification mode" />
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                            <RadioButton x:Name="RbFlashWindow" Content="Flash Window" />
-                            <RadioButton x:Name="RbCircleDot"  Content="Circle Dot" />
-                            <RadioButton x:Name="RbNothing"    Content="Nothing" />
+                            <RadioButton x:Name="RbFlashWindow" Content="Flash Window"
+                                         Checked="OnNotificationModeChanged" />
+                            <RadioButton x:Name="RbCircleDot"   Content="Circle Dot"
+                                         Checked="OnNotificationModeChanged" />
+                            <RadioButton x:Name="RbNothing"     Content="Nothing"
+                                         Checked="OnNotificationModeChanged" />
+                        </StackPanel>
+
+                        <!-- Flash Window settings — shown only when Flash Window is selected -->
+                        <StackPanel x:Name="PnlFlashWindowSettings" Margin="0,0,0,6">
+                            <TextBlock Style="{StaticResource LabelStyle}" Text="Flash window target" />
+                            <TextBox x:Name="TxtFlashWindowTarget" />
+                            <TextBlock Style="{StaticResource HintStyle}"
+                                       Text="Process name to flash (e.g. Chrome). Use 'All' for all windows or 'None' to disable." />
                         </StackPanel>
 
                         <TextBlock Style="{StaticResource LabelStyle}" Text="System Prompt" />
