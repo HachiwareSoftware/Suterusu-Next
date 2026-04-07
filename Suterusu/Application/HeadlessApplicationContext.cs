@@ -6,7 +6,6 @@ using Suterusu.Hooks;
 using Suterusu.Models;
 using Suterusu.Notifications;
 using Suterusu.Services;
-using Suterusu.UI;
 
 namespace Suterusu.Application
 {
@@ -24,7 +23,6 @@ namespace Suterusu.Application
         private readonly INotificationService   _notificationService;
         private readonly ClipboardAiController  _controller;
         private readonly KeyboardHook           _keyboardHook;
-        private readonly SettingsWindowManager  _settingsWindowManager;
         private          AppConfig              _config;
 
         public HeadlessApplicationContext(StartupOptions options)
@@ -50,8 +48,6 @@ namespace Suterusu.Application
                 new NLogLogger("Suterusu.Controller"),
                 _notificationService);
 
-            _settingsWindowManager = new SettingsWindowManager(_configManager, _controller);
-
             // --- Keyboard hook ---
             _keyboardHook = new KeyboardHook(new NLogLogger("Suterusu.Hook"));
             _keyboardHook.HotkeyTriggered += HandleHotkey;
@@ -68,17 +64,6 @@ namespace Suterusu.Application
             }
 
             PrintStartupBanner(options.DebugEnabled);
-
-            // --- Optional: open settings on startup ---
-            if (options.OpenSettings)
-            {
-                _settingsWindowManager.Closed += (s, e) =>
-                {
-                    _logger.Info("Settings window closed with --open-settings – exiting application.");
-                    ExitThread();
-                };
-                _settingsWindowManager.ShowSettings();
-            }
         }
 
         private void PrintStartupBanner(bool debugEnabled)
@@ -150,6 +135,7 @@ namespace Suterusu.Application
                 _keyboardHook?.Dispose();
                 _controller?.Dispose();
                 _aiClient?.Dispose();
+                (_notificationService as IDisposable)?.Dispose();
                 _logger.Info("Suterusu shutdown.");
             }
 

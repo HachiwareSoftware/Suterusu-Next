@@ -15,18 +15,22 @@ namespace Suterusu.UI
     public partial class SettingsWindow : Window
     {
         private readonly ConfigManager         _configManager;
-        private readonly ClipboardAiController _controller;
+        private readonly ClipboardAiController _controller;   // null when opened standalone
         private readonly ILogger               _logger = new NLogLogger("Suterusu.Settings");
 
         private bool _isApplyingPreset;
         private bool _isSyncingPresetSelection;
 
-        public SettingsWindow(ConfigManager configManager, ClipboardAiController controller)
+        /// <summary>
+        /// Opens the settings window.
+        /// <paramref name="controller"/> may be null when the window is launched
+        /// standalone (via --open-settings) with no running headless session.
+        /// </summary>
+        public SettingsWindow(ConfigManager configManager, ClipboardAiController controller = null)
         {
             _configManager = configManager;
             _controller    = controller;
 
-            EnsureWpfApplication();
             InitializeComponent();
 
             CboEndpointPresets.ItemsSource = EndpointPreset.GetPresets();
@@ -205,7 +209,7 @@ namespace Suterusu.UI
                 return false;
             }
 
-            _controller.RefreshConfiguration();
+            _controller?.RefreshConfiguration();
             _logger.Info("Settings saved and configuration refreshed.");
             HideValidation();
             return true;
@@ -282,10 +286,5 @@ namespace Suterusu.UI
             LblValidationError.Text          = string.Empty;
         }
 
-        private void EnsureWpfApplication()
-        {
-            if (System.Windows.Application.Current == null)
-                new System.Windows.Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
-        }
     }
 }

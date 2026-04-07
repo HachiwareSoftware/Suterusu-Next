@@ -249,10 +249,10 @@
 
                         <TextBlock Style="{StaticResource LabelStyle}" Text="System Prompt" />
                         <TextBox x:Name="TxtSystemPrompt"
-                                 MinHeight="100"
+                                 Height="120"
                                  AcceptsReturn="True"
                                  TextWrapping="Wrap"
-                                 VerticalScrollBarVisibility="Auto" />
+                                 VerticalScrollBarVisibility="Visible" />
                     </StackPanel>
                 </Border>
 

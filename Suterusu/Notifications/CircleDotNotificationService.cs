@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Drawing;
 using System.Windows.Forms;
 using Suterusu.Interop;
@@ -10,8 +11,15 @@ namespace Suterusu.Notifications
     /// Shows a small topmost, non-activating overlay dot (green = success, red = failure)
     /// that pulses with a smooth sine-wave fade for a configurable duration, then auto-hides.
     /// The sine animation always completes exactly two full cycles within the display period.
+    /// <para>
+    /// All overlay forms run on a single long-lived STA background thread so that
+    /// <see cref="System.Windows.Forms.Application.Run(Form)"/> is always called on the
+    /// same stable thread context. Spawning a new STA thread per notification causes
+    /// .NET Framework 4.8 WinForms to silently skip message-pump initialization on the
+    /// second and subsequent threads, making the form invisible.
+    /// </para>
     /// </summary>
-    public class CircleDotNotificationService : INotificationService
+    public class CircleDotNotificationService : INotificationService, IDisposable
     {
         private readonly ILogger _logger = new NLogLogger("Suterusu.Notification.CircleDot");
         private readonly int _pulseDurationMs;
@@ -21,33 +29,46 @@ namespace Suterusu.Notifications
         private const int MarginBottom = 20;
         private const int PulseTimerMs = 40;   // ~25 fps — smooth without being heavy
 
+        // Single dedicated STA thread that owns all WinForms message loops.
+        private readonly BlockingCollection<Color> _queue
+            = new BlockingCollection<Color>();
+        private readonly System.Threading.Thread _staThread;
+
         public CircleDotNotificationService(int pulseDurationMs)
         {
             // Guard: clamp internally so the service is safe even if called with an
             // un-normalized config value (e.g. 0 from a freshly-constructed test config).
             _pulseDurationMs = pulseDurationMs >= 200 ? pulseDurationMs : 800;
+
+            _staThread = new System.Threading.Thread(ProcessQueue);
+            _staThread.SetApartmentState(System.Threading.ApartmentState.STA);
+            _staThread.IsBackground = true;
+            _staThread.Name = "CircleDot-STA";
+            _staThread.Start();
         }
 
-        public void NotifySuccess() => ShowDot(Color.LimeGreen);
-        public void NotifyFailure() => ShowDot(Color.Crimson);
+        public void NotifySuccess() => _queue.TryAdd(Color.LimeGreen);
+        public void NotifyFailure() => _queue.TryAdd(Color.Crimson);
 
-        private void ShowDot(Color color)
+        public void Dispose()
+        {
+            // Signal the STA thread to drain and exit.
+            _queue.CompleteAdding();
+        }
+
+        private void ProcessQueue()
         {
             try
             {
-                // Run on a dedicated STA thread so the WinForms overlay message loop works.
-                var thread = new System.Threading.Thread(() =>
+                foreach (Color color in _queue.GetConsumingEnumerable())
                 {
                     try { DoShowDot(color, _pulseDurationMs); }
                     catch (Exception ex) { _logger.Error("CircleDot overlay error.", ex); }
-                });
-                thread.SetApartmentState(System.Threading.ApartmentState.STA);
-                thread.IsBackground = true;
-                thread.Start();
+                }
             }
             catch (Exception ex)
             {
-                _logger.Error("Failed to start CircleDot thread.", ex);
+                _logger.Error("CircleDot STA thread exiting with error.", ex);
             }
         }
 

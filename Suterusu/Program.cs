@@ -2,7 +2,9 @@ using System;
 using System.Windows.Forms;
 using Suterusu.Application;
 using Suterusu.Bootstrap;
+using Suterusu.Configuration;
 using Suterusu.Services;
+using Suterusu.UI;
 
 namespace Suterusu
 {
@@ -22,6 +24,25 @@ namespace Suterusu
 
             // One-time global NLog setup (console only in --debug mode)
             NLogLogger.Configure(options.DebugEnabled);
+
+            // --open-settings: show WPF settings window directly on this [STAThread].
+            // ShowDialog() pushes WPF's own DispatcherFrame, giving full keyboard support
+            // on every PC without any WinForms interop. No WinForms loop needed.
+            if (options.OpenSettings)
+            {
+                try
+                {
+                    var configManager = new ConfigManager(new NLogLogger("Suterusu.Config"));
+                    configManager.LoadOrCreateDefault();
+                    new System.Windows.Application { ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown };
+                    new SettingsWindow(configManager).ShowDialog();
+                }
+                catch (Exception ex)
+                {
+                    new NLogLogger("Suterusu.Program").Error("Settings window failed.", ex);
+                }
+                return;
+            }
 
             // Required for WinForms DPI awareness and message loop
             System.Windows.Forms.Application.EnableVisualStyles();
