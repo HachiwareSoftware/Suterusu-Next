@@ -53,6 +53,7 @@ namespace Suterusu.UI
             TxtSystemPrompt.Text     = config.SystemPrompt ?? string.Empty;
             TxtHistoryLimit.Text     = config.HistoryLimit.ToString();
             TxtFlashWindowTarget.Text = config.FlashWindowTarget ?? "Chrome";
+            TxtCircleDotPulseMs.Text  = config.CircleDotPulseMs.ToString();
             SetNotificationMode(config.NotificationMode);
             MatchPresetFromBaseUrl(config.ApiBaseUrl);
             HideValidation();
@@ -181,7 +182,8 @@ namespace Suterusu.UI
                 HistoryLimit          = historyLimit,
                 NotificationMode      = GetNotificationMode(),
                 FlashWindowTarget     = TxtFlashWindowTarget.Text.Trim(),
-                FlashWindowDurationMs = _configManager.Current.FlashWindowDurationMs
+                FlashWindowDurationMs = _configManager.Current.FlashWindowDurationMs,
+                CircleDotPulseMs      = int.TryParse(TxtCircleDotPulseMs.Text, out int pulseMs) ? pulseMs : 800
             };
         }
 
@@ -249,20 +251,23 @@ namespace Suterusu.UI
             RbFlashWindow.IsChecked = mode == NotificationMode.FlashWindow;
             RbCircleDot.IsChecked   = mode == NotificationMode.CircleDot;
             RbNothing.IsChecked     = mode == NotificationMode.Nothing;
-            UpdateFlashWindowSettingsVisibility(mode);
+            UpdateNotificationSettingsVisibility(mode);
         }
 
         private void OnNotificationModeChanged(object sender, RoutedEventArgs e)
         {
-            UpdateFlashWindowSettingsVisibility(GetNotificationMode());
+            UpdateNotificationSettingsVisibility(GetNotificationMode());
         }
 
-        private void UpdateFlashWindowSettingsVisibility(NotificationMode mode)
+        private void UpdateNotificationSettingsVisibility(NotificationMode mode)
         {
-            if (PnlFlashWindowSettings == null)
-                return;
-            PnlFlashWindowSettings.Visibility =
-                mode == NotificationMode.FlashWindow ? Visibility.Visible : Visibility.Collapsed;
+            if (PnlFlashWindowSettings != null)
+                PnlFlashWindowSettings.Visibility =
+                    mode == NotificationMode.FlashWindow ? Visibility.Visible : Visibility.Collapsed;
+
+            if (PnlCircleDotSettings != null)
+                PnlCircleDotSettings.Visibility =
+                    mode == NotificationMode.CircleDot ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void ShowValidation(string message)

@@ -239,6 +239,14 @@
                                        Text="Process name to flash (e.g. Chrome). Use 'All' for all windows or 'None' to disable." />
                         </StackPanel>
 
+                        <!-- Circle Dot settings — shown only when Circle Dot is selected -->
+                        <StackPanel x:Name="PnlCircleDotSettings" Margin="0,0,0,6" Visibility="Collapsed">
+                            <TextBlock Style="{StaticResource LabelStyle}" Text="Pulse duration (ms)" />
+                            <TextBox x:Name="TxtCircleDotPulseMs" Width="100" HorizontalAlignment="Left" />
+                            <TextBlock Style="{StaticResource HintStyle}"
+                                       Text="How long the dot is visible and pulsing (200–5000 ms). The sine animation always completes two full cycles in this period." />
+                        </StackPanel>
+
                         <TextBlock Style="{StaticResource LabelStyle}" Text="System Prompt" />
                         <TextBox x:Name="TxtSystemPrompt"
                                  MinHeight="100"

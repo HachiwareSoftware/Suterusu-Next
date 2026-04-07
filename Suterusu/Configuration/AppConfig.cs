@@ -29,6 +29,12 @@ namespace Suterusu.Configuration
         /// </summary>
         public int FlashWindowDurationMs { get; set; }
 
+        /// <summary>
+        /// Total time (in milliseconds) the Circle Dot overlay is visible and pulsing.
+        /// The sine-wave animation always completes exactly two full cycles in this period.
+        /// </summary>
+        public int CircleDotPulseMs { get; set; }
+
         public static AppConfig CreateDefault()
         {
             return new AppConfig
@@ -40,7 +46,8 @@ namespace Suterusu.Configuration
                 HistoryLimit          = 10,
                 NotificationMode      = NotificationMode.FlashWindow,
                 FlashWindowTarget     = "Chrome",
-                FlashWindowDurationMs = 1600
+                FlashWindowDurationMs = 1600,
+                CircleDotPulseMs      = 800
             };
         }
 
@@ -80,6 +87,12 @@ namespace Suterusu.Configuration
 
             if (FlashWindowDurationMs > 10000)
                 FlashWindowDurationMs = 10000;
+
+            if (CircleDotPulseMs < 200)
+                CircleDotPulseMs = 200;
+
+            if (CircleDotPulseMs > 5000)
+                CircleDotPulseMs = 5000;
 
             return this;
         }

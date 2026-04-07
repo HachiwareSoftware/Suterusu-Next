@@ -13,7 +13,7 @@ namespace Suterusu.Notifications
                         config.FlashWindowTarget,
                         config.FlashWindowDurationMs);
                 case NotificationMode.CircleDot:
-                    return new CircleDotNotificationService();
+                    return new CircleDotNotificationService(config.CircleDotPulseMs);
                 case NotificationMode.Nothing:
                 default:
                     return new NullNotificationService();

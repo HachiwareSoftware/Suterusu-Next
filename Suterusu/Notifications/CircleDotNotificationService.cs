@@ -8,15 +8,25 @@ namespace Suterusu.Notifications
 {
     /// <summary>
     /// Shows a small topmost, non-activating overlay dot (green = success, red = failure)
-    /// for a brief period, then auto-hides.
+    /// that pulses with a smooth sine-wave fade for a configurable duration, then auto-hides.
+    /// The sine animation always completes exactly two full cycles within the display period.
     /// </summary>
     public class CircleDotNotificationService : INotificationService
     {
         private readonly ILogger _logger = new NLogLogger("Suterusu.Notification.CircleDot");
-        private const int DotSize     = 24;
-        private const int DisplayMs   = 1500;
-        private const int MarginRight = 20;
+        private readonly int _pulseDurationMs;
+
+        private const int DotSize      = 14;
+        private const int MarginRight  = 20;
         private const int MarginBottom = 20;
+        private const int PulseTimerMs = 40;   // ~25 fps — smooth without being heavy
+
+        public CircleDotNotificationService(int pulseDurationMs)
+        {
+            // Guard: clamp internally so the service is safe even if called with an
+            // un-normalized config value (e.g. 0 from a freshly-constructed test config).
+            _pulseDurationMs = pulseDurationMs >= 200 ? pulseDurationMs : 800;
+        }
 
         public void NotifySuccess() => ShowDot(Color.LimeGreen);
         public void NotifyFailure() => ShowDot(Color.Crimson);
@@ -25,10 +35,10 @@ namespace Suterusu.Notifications
         {
             try
             {
-                // Run on a dedicated STA thread so the WinForms overlay message loop works
+                // Run on a dedicated STA thread so the WinForms overlay message loop works.
                 var thread = new System.Threading.Thread(() =>
                 {
-                    try { DoShowDot(color); }
+                    try { DoShowDot(color, _pulseDurationMs); }
                     catch (Exception ex) { _logger.Error("CircleDot overlay error.", ex); }
                 });
                 thread.SetApartmentState(System.Threading.ApartmentState.STA);
@@ -41,25 +51,39 @@ namespace Suterusu.Notifications
             }
         }
 
-        private static void DoShowDot(Color color)
+        private static void DoShowDot(Color color, int pulseDurationMs)
         {
-            // Position in lower-right corner of the primary screen
+            // Position in lower-right corner of the primary screen.
             Rectangle screen = Screen.PrimaryScreen.WorkingArea;
             int x = screen.Right  - DotSize - MarginRight;
             int y = screen.Bottom - DotSize - MarginBottom;
 
+            // Phase increment per timer tick so that exactly 2 full sine cycles (4π)
+            // fill the total display duration.
+            int    totalTicks     = Math.Max(1, pulseDurationMs / PulseTimerMs);
+            double phaseIncrement = (4.0 * Math.PI) / totalTicks;
+
             using (var form = new OverlayForm(color, x, y, DotSize))
             {
-                // Auto-close after DisplayMs
-                var timer = new Timer { Interval = DisplayMs };
-                timer.Tick += (s, e) =>
+                // Auto-close timer.
+                var closeTimer = new Timer { Interval = pulseDurationMs };
+                closeTimer.Tick += (s, e) =>
                 {
-                    timer.Stop();
+                    closeTimer.Stop();
                     form.Close();
                 };
-                timer.Start();
+                closeTimer.Start();
+
+                // Pulse animation timer — advances the sine phase each tick.
+                var pulseTimer = new Timer { Interval = PulseTimerMs };
+                pulseTimer.Tick += (s, e) => form.AdvancePulse(phaseIncrement);
+                pulseTimer.Start();
+
                 System.Windows.Forms.Application.Run(form);
-                timer.Dispose();
+
+                pulseTimer.Stop();
+                pulseTimer.Dispose();
+                closeTimer.Dispose();
             }
         }
 
@@ -69,13 +93,15 @@ namespace Suterusu.Notifications
         private sealed class OverlayForm : Form
         {
             private readonly Color _dotColor;
+            private double _pulsePhase;          // current sine phase in radians
+            private int    _pulseAlpha = 255;    // 40–255, driven by sine wave
 
             public OverlayForm(Color dotColor, int x, int y, int size)
             {
                 _dotColor = dotColor;
 
                 FormBorderStyle = FormBorderStyle.None;
-                BackColor       = Color.Magenta;      // transparent key color
+                BackColor       = Color.Magenta;    // transparent key colour
                 TransparencyKey = Color.Magenta;
                 StartPosition   = FormStartPosition.Manual;
                 Location        = new Point(x, y);
@@ -83,19 +109,29 @@ namespace Suterusu.Notifications
                 ShowInTaskbar   = false;
                 TopMost         = true;
 
-                // Make it non-activating via extended window styles
                 SetStyle(ControlStyles.SupportsTransparentBackColor, true);
+            }
+
+            /// <summary>
+            /// Advances the sine phase by <paramref name="increment"/> radians and repaints.
+            /// Maps sin ∈ [−1, 1] to alpha ∈ [40, 255] so the dot never goes fully invisible.
+            /// </summary>
+            public void AdvancePulse(double increment)
+            {
+                _pulsePhase += increment;
+                _pulseAlpha  = (int)(((Math.Sin(_pulsePhase) + 1.0) / 2.0) * 215.0) + 40;
+                Invalidate();
             }
 
             protected override void OnHandleCreated(EventArgs e)
             {
                 base.OnHandleCreated(e);
-                // Set WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW so it doesn't steal focus
+                // WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW — prevents focus steal and taskbar entry.
                 int exStyle = NativeMethods.GetWindowLong(Handle, NativeMethods.GWL_EXSTYLE);
                 exStyle |= NativeMethods.WS_EX_NOACTIVATE | NativeMethods.WS_EX_TOOLWINDOW;
                 NativeMethods.SetWindowLong(Handle, NativeMethods.GWL_EXSTYLE, exStyle);
 
-                // Force topmost via SetWindowPos
+                // Force topmost via SetWindowPos so it survives other topmost windows.
                 NativeMethods.SetWindowPos(
                     Handle,
                     new IntPtr(NativeMethods.HWND_TOPMOST),
@@ -107,9 +143,9 @@ namespace Suterusu.Notifications
             {
                 base.OnPaint(e);
                 e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-                using (var brush = new SolidBrush(_dotColor))
+                using (var brush = new SolidBrush(Color.FromArgb(_pulseAlpha, _dotColor)))
                 {
-                    int margin = 1;
+                    const int margin = 1;
                     e.Graphics.FillEllipse(brush,
                         margin, margin,
                         Width  - margin * 2,
@@ -117,7 +153,6 @@ namespace Suterusu.Notifications
                 }
             }
 
-            // Prevent the window from ever gaining activation
             protected override CreateParams CreateParams
             {
                 get
