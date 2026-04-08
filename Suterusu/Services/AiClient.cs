@@ -14,21 +14,26 @@ namespace Suterusu.Services
         private readonly ILogger     _logger;
         private HttpClient           _httpClient;
 
-        private const int TimeoutSeconds = 60;
-
         public AiClient(ILogger logger)
+            : this(logger, null)
+        {
+        }
+
+        public AiClient(ILogger logger, HttpMessageHandler handler)
         {
             _logger    = logger;
             _logger.Debug("initializing HTTP client");
-            _httpClient = CreateHttpClient();
+            _httpClient = CreateHttpClient(handler);
         }
 
-        private static HttpClient CreateHttpClient()
+        private static HttpClient CreateHttpClient(HttpMessageHandler handler)
         {
-            return new HttpClient
-            {
-                Timeout = TimeSpan.FromSeconds(TimeoutSeconds)
-            };
+            var httpClient = handler != null
+                ? new HttpClient(handler)
+                : new HttpClient();
+
+            httpClient.Timeout = Timeout.InfiniteTimeSpan;
+            return httpClient;
         }
 
         public async Task<AiResponseResult> SendAsync(
@@ -217,6 +222,8 @@ namespace Suterusu.Services
             IReadOnlyList<ChatMessage> messages,
             CancellationToken cancellationToken)
         {
+            CancellationTokenSource timeoutCts = null;
+
             try
             {
                 var request = new ChatCompletionRequest
@@ -248,8 +255,11 @@ namespace Suterusu.Services
                     }
 
                     _logger.Debug($"sending HTTP request to {url} with auth={hasApiKey}");
+                    timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    timeoutCts.CancelAfter(config.MultiRequestTimeoutMs);
+
                     using (HttpResponseMessage response = await _httpClient
-                        .SendAsync(httpRequest, cancellationToken).ConfigureAwait(false))
+                        .SendAsync(httpRequest, timeoutCts.Token).ConfigureAwait(false))
                     {
                         string body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
                         _logger.Debug($"response status={(int)response.StatusCode}, body length={body.Length}");
@@ -317,6 +327,10 @@ namespace Suterusu.Services
             {
                 _logger.Debug($"unexpected error: {ex.Message}");
                 return AiSingleAttemptResult.Fail($"Unexpected error: {ex.Message}");
+            }
+            finally
+            {
+                timeoutCts?.Dispose();
             }
         }
 
