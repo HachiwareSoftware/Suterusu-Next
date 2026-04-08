@@ -70,23 +70,17 @@ namespace Suterusu.UI
 
             return new AppConfig
             {
-                ModelPriority             = priority,
-                // Keep legacy fields consistent so old code paths still work
-                ApiBaseUrl                = priority.Count > 0 ? priority[0].BaseUrl : string.Empty,
-                ApiKey                    = priority.Count > 0 ? priority[0].ApiKey  : string.Empty,
-                Models                    = priority.Select(e => e.Model).Distinct().ToList(),
-                Endpoints                 = new List<EndpointConfig>(),
-                SystemPrompt              = TxtSystemPrompt.Text,
-                HistoryLimit              = historyLimit,
-                NotificationMode          = GetNotificationMode(),
-                MultiRequestMode          = GetMultiRequestMode(),
-                MultiRequestTimeoutMs     = int.TryParse(TxtMultiRequestTimeoutMs.Text, out int timeout) ? timeout : 60000,
-                FlashWindowTarget         = TxtFlashWindowTarget.Text.Trim(),
-                FlashWindowDurationMs     = _configManager.Current.FlashWindowDurationMs,
-                CircleDotPulseMs          = _configManager.Current.CircleDotPulseMs,
-                CircleDotBlinkCount       = int.TryParse(TxtCircleDotBlinkCount.Text, out int blinkCount) ? blinkCount : 3,
-                CircleDotBlinkDurationMs  = int.TryParse(TxtCircleDotBlinkDurationMs.Text, out int blinkDuration) ? blinkDuration : 600,
-                RoundRobinIndex           = _configManager.Current.RoundRobinIndex
+                ModelPriority            = priority,
+                SystemPrompt             = TxtSystemPrompt.Text,
+                HistoryLimit             = historyLimit,
+                NotificationMode         = GetNotificationMode(),
+                MultiRequestMode         = GetMultiRequestMode(),
+                MultiRequestTimeoutMs    = int.TryParse(TxtMultiRequestTimeoutMs.Text, out int timeout) ? timeout : 60000,
+                FlashWindowTarget        = TxtFlashWindowTarget.Text.Trim(),
+                FlashWindowDurationMs    = _configManager.Current.FlashWindowDurationMs,
+                CircleDotBlinkCount      = int.TryParse(TxtCircleDotBlinkCount.Text, out int blinkCount) ? blinkCount : 3,
+                CircleDotBlinkDurationMs = int.TryParse(TxtCircleDotBlinkDurationMs.Text, out int blinkDuration) ? blinkDuration : 600,
+                RoundRobinIndex          = _configManager.Current.RoundRobinIndex
             };
         }
 

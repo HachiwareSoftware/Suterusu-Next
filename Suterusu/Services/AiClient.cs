@@ -56,55 +56,13 @@ namespace Suterusu.Services
                 return await SendFastestAsync(config, messages, cancellationToken);
             }
 
-            _logger.Debug("Falling back to old single-mode behavior");
-
-            if (config.Models == null || config.Models.Count == 0)
-            {
-                _logger.Error("no models configured");
-                return AiResponseResult.Fail("No models configured.");
-            }
-
-            var errors = new List<string>();
-
-            foreach (string model in config.Models)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                _logger.Info($"Trying model: {model}");
-
-                var defaultEndpoint = EndpointConfig.CreateDefault();
-                defaultEndpoint.BaseUrl = config.ApiBaseUrl;
-                defaultEndpoint.Models = config.Models;
-                defaultEndpoint.ApiKey = config.ApiKey;
-
-                AiSingleAttemptResult attempt = await SendToModelAsync(
-                    model, defaultEndpoint, config, messages, cancellationToken).ConfigureAwait(false);
-
-                if (attempt.Success)
-                {
-                    _logger.Info($"Success with model: {model}");
-                    return AiResponseResult.Ok(attempt.Content, model);
-                }
-
-                _logger.Warn($"Model {model} failed: {attempt.Error}");
-                errors.Add($"[{model}] {attempt.Error}");
-            }
-
-            string summary = "All models failed: " + string.Join(
-                "; ", errors);
-            _logger.Error(summary);
-            return AiResponseResult.Fail(summary);
+            _logger.Debug("No recognized mode; defaulting to sequential");
+            return await SendSequentialAsync(config, messages, cancellationToken);
         }
 
-        /// <summary>
-        /// Returns the effective endpoint list, preferring <see cref="AppConfig.ModelPriority"/>
-        /// (each entry becomes a single-model endpoint) over the legacy <see cref="AppConfig.Endpoints"/>.
-        /// </summary>
         private static List<EndpointConfig> GetEndpoints(AppConfig config)
         {
-            if (config.ModelPriority != null && config.ModelPriority.Count > 0)
-                return config.ModelPriority.ConvertAll(e => e.ToEndpointConfig());
-
-            return config.Endpoints ?? new List<EndpointConfig>();
+            return config.ModelPriority?.ConvertAll(e => e.ToEndpointConfig()) ?? new List<EndpointConfig>();
         }
 
         private async Task<AiResponseResult> SendSequentialAsync(

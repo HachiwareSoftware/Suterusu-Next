@@ -1,11 +1,15 @@
 using System.Collections.Generic;
 using Xunit;
 using Suterusu.Configuration;
+using Suterusu.Models;
 
 namespace Suterusu.Tests
 {
     public class ConfigTests
     {
+        private static ModelEntry ValidEntry(string url = "https://api.openai.com/v1", string model = "gpt-5.4-mini") =>
+            new ModelEntry { Name = "Test", BaseUrl = url, ApiKey = "", Model = model };
+
         // -----------------------------------------------------------------------
         // CreateDefault
         // -----------------------------------------------------------------------
@@ -18,18 +22,10 @@ namespace Suterusu.Tests
         }
 
         [Fact]
-        public void CreateDefault_ApiBaseUrl_ContainsOpenAi()
+        public void CreateDefault_ModelPriority_IsNotNull()
         {
             var config = AppConfig.CreateDefault();
-            Assert.Contains("openai", config.ApiBaseUrl.ToLowerInvariant());
-        }
-
-        [Fact]
-        public void CreateDefault_Models_NotEmpty()
-        {
-            var config = AppConfig.CreateDefault();
-            Assert.NotNull(config.Models);
-            Assert.NotEmpty(config.Models);
+            Assert.NotNull(config.ModelPriority);
         }
 
         [Fact]
@@ -39,119 +35,79 @@ namespace Suterusu.Tests
             Assert.True(config.HistoryLimit > 0);
         }
 
-        // -----------------------------------------------------------------------
-        // Normalize — ApiBaseUrl
-        // -----------------------------------------------------------------------
-
         [Fact]
-        public void Normalize_TrimsTrailingSlash_FromApiBaseUrl()
+        public void CreateDefault_SystemPrompt_IsNotBlank()
         {
-            var config = new AppConfig
-            {
-                ApiBaseUrl   = "https://api.openai.com/",
-                Models       = new List<string> { "gpt-5.4-mini" },
-                HistoryLimit = 10
-            };
-
-            config.Normalize();
-
-            Assert.Equal("https://api.openai.com", config.ApiBaseUrl);
-        }
-
-        [Fact]
-        public void Normalize_TripsMultipleTrailingSlashes_FromApiBaseUrl()
-        {
-            var config = new AppConfig
-            {
-                ApiBaseUrl   = "https://api.openai.com///",
-                Models       = new List<string> { "gpt-5.4-mini" },
-                HistoryLimit = 10
-            };
-
-            config.Normalize();
-
-            Assert.Equal("https://api.openai.com", config.ApiBaseUrl);
-        }
-
-        [Fact]
-        public void Normalize_UsesDefaultApiBaseUrl_WhenBlank()
-        {
-            var config = new AppConfig
-            {
-                ApiBaseUrl   = "   ",
-                Models       = new List<string> { "gpt-5.4-mini" },
-                HistoryLimit = 10
-            };
-
-            config.Normalize();
-
-            Assert.False(string.IsNullOrWhiteSpace(config.ApiBaseUrl));
+            var config = AppConfig.CreateDefault();
+            Assert.False(string.IsNullOrWhiteSpace(config.SystemPrompt));
         }
 
         // -----------------------------------------------------------------------
-        // Normalize — Models deduplication and blank removal
+        // Normalize — ModelPriority filtering
         // -----------------------------------------------------------------------
 
         [Fact]
-        public void Normalize_RemovesDuplicateModels()
+        public void Normalize_InitializesNullModelPriority()
         {
-            var config = new AppConfig
-            {
-                ApiBaseUrl   = "https://api.openai.com",
-                Models       = new List<string> { "gpt-5.4", "gpt-5.3-codex", "gpt-5.4-mini" },
-                HistoryLimit = 10
-            };
-
+            var config = new AppConfig { ModelPriority = null, HistoryLimit = 5 };
             config.Normalize();
-
-            Assert.Equal(2, config.Models.Count);
+            Assert.NotNull(config.ModelPriority);
         }
 
         [Fact]
-        public void Normalize_RemovesBlankModels()
+        public void Normalize_RemovesEntriesWithBlankBaseUrl()
         {
             var config = new AppConfig
             {
-                ApiBaseUrl   = "https://api.openai.com",
-                Models       = new List<string> { "gpt-5.4-mini", "", "  ", null },
-                HistoryLimit = 10
+                ModelPriority = new List<ModelEntry>
+                {
+                    new ModelEntry { Name = "A", BaseUrl = "",    Model = "gpt-5.4-mini" },
+                    new ModelEntry { Name = "B", BaseUrl = "https://api.openai.com", Model = "gpt-5.4-mini" }
+                },
+                HistoryLimit = 5
             };
 
             config.Normalize();
 
-            Assert.Single(config.Models);
-            Assert.Equal("gpt-5.4-mini", config.Models[0]);
+            Assert.Single(config.ModelPriority);
+            Assert.Equal("B", config.ModelPriority[0].Name);
         }
 
         [Fact]
-        public void Normalize_AddsDefaultModel_WhenModelsEmptyAfterCleaning()
+        public void Normalize_RemovesEntriesWithBlankModel()
         {
             var config = new AppConfig
             {
-                ApiBaseUrl   = "https://api.openai.com",
-                Models       = new List<string> { "", "  " },
-                HistoryLimit = 10
+                ModelPriority = new List<ModelEntry>
+                {
+                    new ModelEntry { Name = "A", BaseUrl = "https://api.openai.com", Model = "   " },
+                    new ModelEntry { Name = "B", BaseUrl = "https://api.openai.com", Model = "gpt-5.4-mini" }
+                },
+                HistoryLimit = 5
             };
 
             config.Normalize();
 
-            Assert.NotEmpty(config.Models);
+            Assert.Single(config.ModelPriority);
+            Assert.Equal("B", config.ModelPriority[0].Name);
         }
 
         [Fact]
-        public void Normalize_AddsDefaultModel_WhenModelsListIsNull()
+        public void Normalize_PreservesValidEntries()
         {
             var config = new AppConfig
             {
-                ApiBaseUrl   = "https://api.openai.com",
-                Models       = null,
-                HistoryLimit = 10
+                ModelPriority = new List<ModelEntry>
+                {
+                    ValidEntry("https://api.openai.com", "gpt-5.4-mini"),
+                    ValidEntry("https://openrouter.ai/api/v1", "mistral-7b")
+                },
+                HistoryLimit = 5
             };
 
             config.Normalize();
 
-            Assert.NotNull(config.Models);
-            Assert.NotEmpty(config.Models);
+            Assert.Equal(2, config.ModelPriority.Count);
         }
 
         // -----------------------------------------------------------------------
@@ -163,9 +119,8 @@ namespace Suterusu.Tests
         {
             var config = new AppConfig
             {
-                ApiBaseUrl   = "https://api.openai.com",
-                Models       = new List<string> { "gpt-5.4-mini" },
-                HistoryLimit = -5
+                ModelPriority = new List<ModelEntry> { ValidEntry() },
+                HistoryLimit  = -5
             };
 
             config.Normalize();
@@ -178,9 +133,8 @@ namespace Suterusu.Tests
         {
             var config = new AppConfig
             {
-                ApiBaseUrl   = "https://api.openai.com",
-                Models       = new List<string> { "gpt-5.4-mini" },
-                HistoryLimit = 200
+                ModelPriority = new List<ModelEntry> { ValidEntry() },
+                HistoryLimit  = 200
             };
 
             config.Normalize();
@@ -193,9 +147,8 @@ namespace Suterusu.Tests
         {
             var config = new AppConfig
             {
-                ApiBaseUrl   = "https://api.openai.com",
-                Models       = new List<string> { "gpt-5.4-mini" },
-                HistoryLimit = 42
+                ModelPriority = new List<ModelEntry> { ValidEntry() },
+                HistoryLimit  = 42
             };
 
             config.Normalize();
@@ -216,20 +169,45 @@ namespace Suterusu.Tests
         // -----------------------------------------------------------------------
 
         [Fact]
-        public void Validate_ReturnsNoErrors_ForValidDefaultConfig()
+        public void Validate_ReturnsNoErrors_ForConfigWithValidEntry()
         {
-            var config = AppConfig.CreateDefault().Normalize();
+            var config = new AppConfig
+            {
+                ModelPriority = new List<ModelEntry> { ValidEntry() },
+                HistoryLimit  = 10
+            };
+            config.Normalize();
+
             var errors = config.Validate();
+
             Assert.Empty(errors);
         }
 
         [Fact]
-        public void Validate_ReturnsError_WhenApiBaseUrlIsEmpty()
+        public void Validate_ReturnsError_WhenModelPriorityIsEmpty()
+        {
+            var config = new AppConfig { ModelPriority = new List<ModelEntry>() };
+            var errors = config.Validate();
+            Assert.NotEmpty(errors);
+        }
+
+        [Fact]
+        public void Validate_ReturnsError_WhenModelPriorityIsNull()
+        {
+            var config = new AppConfig { ModelPriority = null };
+            var errors = config.Validate();
+            Assert.NotEmpty(errors);
+        }
+
+        [Fact]
+        public void Validate_ReturnsError_WhenEntryHasBlankBaseUrl()
         {
             var config = new AppConfig
             {
-                ApiBaseUrl = "",
-                Models     = new List<string> { "gpt-5.4-mini" }
+                ModelPriority = new List<ModelEntry>
+                {
+                    new ModelEntry { Name = "A", BaseUrl = "", Model = "gpt-5.4-mini" }
+                }
             };
 
             var errors = config.Validate();
@@ -238,12 +216,14 @@ namespace Suterusu.Tests
         }
 
         [Fact]
-        public void Validate_ReturnsError_WhenApiBaseUrlIsWhitespace()
+        public void Validate_ReturnsError_WhenEntryHasBlankModel()
         {
             var config = new AppConfig
             {
-                ApiBaseUrl = "   ",
-                Models     = new List<string> { "gpt-5.4-mini" }
+                ModelPriority = new List<ModelEntry>
+                {
+                    new ModelEntry { Name = "A", BaseUrl = "https://api.openai.com", Model = "" }
+                }
             };
 
             var errors = config.Validate();
@@ -252,40 +232,15 @@ namespace Suterusu.Tests
         }
 
         [Fact]
-        public void Validate_ReturnsError_WhenModelsListIsEmpty()
+        public void Validate_ReturnsMultipleErrors_ForMultipleInvalidEntries()
         {
             var config = new AppConfig
             {
-                ApiBaseUrl = "https://api.openai.com",
-                Models     = new List<string>()
-            };
-
-            var errors = config.Validate();
-
-            Assert.NotEmpty(errors);
-        }
-
-        [Fact]
-        public void Validate_ReturnsError_WhenModelsListIsNull()
-        {
-            var config = new AppConfig
-            {
-                ApiBaseUrl = "https://api.openai.com",
-                Models     = null
-            };
-
-            var errors = config.Validate();
-
-            Assert.NotEmpty(errors);
-        }
-
-        [Fact]
-        public void Validate_ReturnsMultipleErrors_WhenBothApiBaseUrlAndModelsInvalid()
-        {
-            var config = new AppConfig
-            {
-                ApiBaseUrl = "",
-                Models     = null
+                ModelPriority = new List<ModelEntry>
+                {
+                    new ModelEntry { Name = "A", BaseUrl = "", Model = "" },
+                    new ModelEntry { Name = "B", BaseUrl = "", Model = "" }
+                }
             };
 
             var errors = config.Validate();

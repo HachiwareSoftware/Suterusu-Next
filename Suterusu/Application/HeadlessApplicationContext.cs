@@ -32,7 +32,7 @@ namespace Suterusu.Application
             // --- Build config ---
             _configManager = new ConfigManager(new NLogLogger("Suterusu.Config"));
             _config = _configManager.LoadOrCreateDefault();
-            _logger.Debug($"Config loaded: baseUrl={_config.ApiBaseUrl}, apiKey present={!string.IsNullOrEmpty(_config.ApiKey)}, apiKey length={_config.ApiKey?.Length ?? 0}, models={_config.Models?.Count ?? 0}");
+            _logger.Debug($"Config loaded: {_config.ModelPriority?.Count ?? 0} model priority entries");
 
             // --- Build services ---
             _clipboardService    = new ClipboardService(new NLogLogger("Suterusu.Clipboard"));
@@ -82,16 +82,12 @@ namespace Suterusu.Application
                     break;
             }
 
-            string apiKeyDisplay = string.IsNullOrEmpty(_config.ApiKey) ? "(not set)" : "(***)";
-
             _logger.Info("");
             _logger.Info("=== Suterusu ===");
             _logger.Info($"Debug mode: {(debugEnabled ? "Enabled" : "Disabled")}");
             _logger.Info("");
             _logger.Info("Configuration loaded successfully:");
-            _logger.Info($"  API URL: {_config.ApiBaseUrl}");
-            _logger.Info($"  Model: {(_config.Models != null && _config.Models.Count > 0 ? _config.Models[0] : "(none)")}");
-            _logger.Info($"  API Key: {apiKeyDisplay}");
+            _logger.Info($"  Models: {_config.ModelPriority?.Count ?? 0} entries");
             _logger.Info($"  System Prompt: {_config.SystemPrompt}");
             _logger.Info($"  Notification: {notificationMode}");
             _logger.Info("");

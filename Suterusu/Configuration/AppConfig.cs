@@ -6,11 +6,11 @@ namespace Suterusu.Configuration
 {
     public class AppConfig
     {
-        public string ApiBaseUrl { get; set; }
-
-        public string ApiKey { get; set; }
-
-        public List<string> Models { get; set; }
+        /// <summary>
+        /// Flat ordered list of (endpoint, model) pairs used by all multi-request modes.
+        /// Models are tried top-to-bottom in Sequential mode, rotated in RoundRobin, raced in Fastest.
+        /// </summary>
+        public List<ModelEntry> ModelPriority { get; set; }
 
         public string SystemPrompt { get; set; }
 
@@ -22,16 +22,7 @@ namespace Suterusu.Configuration
 
         public int MultiRequestTimeoutMs { get; set; }
 
-        public List<EndpointConfig> Endpoints { get; set; }
-
         public int RoundRobinIndex { get; set; }
-
-        /// <summary>
-        /// Flat ordered list of (endpoint, model) pairs used by all multi-request modes.
-        /// Models are tried top-to-bottom in Sequential mode, rotated in RoundRobin, raced in Fastest.
-        /// Replaces the old Endpoints list as the primary configuration.
-        /// </summary>
-        public List<ModelEntry> ModelPriority { get; set; }
 
         /// <summary>
         /// Process name (or partial name) of the window to flash, e.g. "Chrome".
@@ -41,15 +32,8 @@ namespace Suterusu.Configuration
 
         /// <summary>
         /// How long (in milliseconds) to let the flash run before sending FLASHW_STOP.
-        /// Mirrors the original 1600 ms hard-coded delay.
         /// </summary>
         public int FlashWindowDurationMs { get; set; }
-
-        /// <summary>
-        /// Total time (in milliseconds) the Circle Dot overlay is visible and pulsing.
-        /// The sine-wave animation always completes exactly two full cycles in this period.
-        /// </summary>
-        public int CircleDotPulseMs { get; set; }
 
         public int CircleDotBlinkCount { get; set; }
 
@@ -59,41 +43,22 @@ namespace Suterusu.Configuration
         {
             return new AppConfig
             {
-                ApiBaseUrl            = "https://api.openai.com/v1/chat/completions",
-                ApiKey                = "",
-                Models                = new List<string> { "gpt-5.4-mini" },
-                SystemPrompt          = "You are a helpful assistant.",
-                HistoryLimit          = 10,
-                NotificationMode      = NotificationMode.FlashWindow,
-                MultiRequestMode      = MultiRequestMode.RoundRobin,
-                MultiRequestTimeoutMs = 60000,
-                Endpoints             = new List<EndpointConfig>(),
-                RoundRobinIndex       = 0,
-                ModelPriority         = new List<ModelEntry>(),
-                FlashWindowTarget     = "Chrome",
-                FlashWindowDurationMs = 1600,
-                CircleDotPulseMs      = 800,
-                CircleDotBlinkCount   = 3,
+                ModelPriority            = new List<ModelEntry>(),
+                SystemPrompt             = "You are a helpful assistant.",
+                HistoryLimit             = 10,
+                NotificationMode         = NotificationMode.FlashWindow,
+                MultiRequestMode         = MultiRequestMode.RoundRobin,
+                MultiRequestTimeoutMs    = 60000,
+                RoundRobinIndex          = 0,
+                FlashWindowTarget        = "Chrome",
+                FlashWindowDurationMs    = 1600,
+                CircleDotBlinkCount      = 3,
                 CircleDotBlinkDurationMs = 600
             };
         }
 
         public AppConfig Normalize()
         {
-            if (string.IsNullOrWhiteSpace(ApiBaseUrl))
-                ApiBaseUrl = "https://api.openai.com/v1/chat/completions";
-
-            ApiBaseUrl = ApiBaseUrl.TrimEnd('/');
-
-            if (Models == null)
-                Models = new List<string>();
-
-            Models = Models
-                .Where(m => !string.IsNullOrWhiteSpace(m))
-                .Select(m => m.Trim())
-                .Distinct()
-                .ToList();
-
             if (string.IsNullOrWhiteSpace(SystemPrompt))
                 SystemPrompt = "You are a helpful assistant.";
 
@@ -111,12 +76,6 @@ namespace Suterusu.Configuration
 
             if (FlashWindowDurationMs > 10000)
                 FlashWindowDurationMs = 10000;
-
-            if (CircleDotPulseMs < 200)
-                CircleDotPulseMs = 200;
-
-            if (CircleDotPulseMs > 5000)
-                CircleDotPulseMs = 5000;
 
             if (MultiRequestTimeoutMs <= 0)
                 MultiRequestTimeoutMs = 60000;
@@ -139,44 +98,9 @@ namespace Suterusu.Configuration
             if (RoundRobinIndex < 0)
                 RoundRobinIndex = 0;
 
-            // Ensure ModelPriority is initialised
             if (ModelPriority == null)
                 ModelPriority = new List<ModelEntry>();
 
-            // Migrate from old Endpoints list
-            if (ModelPriority.Count == 0 && Endpoints != null && Endpoints.Count > 0)
-            {
-                foreach (var ep in Endpoints)
-                {
-                    foreach (var model in ep.Models ?? new List<string>())
-                    {
-                        ModelPriority.Add(new ModelEntry
-                        {
-                            Name    = ep.Name ?? "Endpoint",
-                            BaseUrl = ep.BaseUrl,
-                            ApiKey  = ep.ApiKey ?? string.Empty,
-                            Model   = model
-                        });
-                    }
-                }
-            }
-
-            // Migrate from old single-endpoint fields
-            if (ModelPriority.Count == 0 && !string.IsNullOrWhiteSpace(ApiBaseUrl) && Models.Count > 0)
-            {
-                foreach (var model in Models)
-                {
-                    ModelPriority.Add(new ModelEntry
-                    {
-                        Name    = "Default",
-                        BaseUrl = ApiBaseUrl,
-                        ApiKey  = ApiKey ?? string.Empty,
-                        Model   = model
-                    });
-                }
-            }
-
-            // Remove entries that have no URL or model
             ModelPriority = ModelPriority
                 .Where(e => !string.IsNullOrWhiteSpace(e.BaseUrl) && !string.IsNullOrWhiteSpace(e.Model))
                 .ToList();

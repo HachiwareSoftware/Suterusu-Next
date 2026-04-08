@@ -16,8 +16,7 @@ namespace Suterusu.Tests
             {
                 NotificationMode      = mode,
                 FlashWindowTarget     = "Chrome",
-                FlashWindowDurationMs = 1600,
-                CircleDotPulseMs      = 800
+                FlashWindowDurationMs = 1600
             };
 
         [Fact]
