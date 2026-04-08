@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Drawing;
 using System.Windows.Forms;
 using Suterusu.Configuration;
@@ -69,38 +70,41 @@ namespace Suterusu.Notifications
             int x = screen.Right  - DotSize - MarginRight;
             int y = screen.Bottom - DotSize - MarginBottom;
 
-            int totalBlinks = blinkCount;
-            int blinkTime = blinkDurationMs / totalBlinks;
-            int halfBlinkTime = blinkTime / 2;
+            // Each blink = one transparent→color→transparent cycle.
+            int cycleMs     = blinkDurationMs / blinkCount;
+            int halfCycleMs = cycleMs / 2;
 
             using (var form = new OverlayForm(color, x, y, DotSize))
             {
-                var closeTimer = new Timer { Interval = blinkDurationMs + 100 };
+                var closeTimer = new Timer { Interval = blinkDurationMs + 50 };
                 closeTimer.Tick += (s, e) =>
                 {
                     closeTimer.Stop();
+                    form.SetAlpha(0);
                     form.Close();
                 };
                 closeTimer.Start();
 
+                var sw         = Stopwatch.StartNew();
                 var blinkTimer = new Timer { Interval = BlinkTimerMs };
-                int blinkPhase = 0;
-                int alpha = 0;
 
                 blinkTimer.Tick += (s, e) =>
                 {
-                    blinkPhase++;
-                    int cycleTime = blinkTime * 2;
-                    int progress = blinkPhase % cycleTime;
+                    long elapsedMs = sw.ElapsedMilliseconds;
+                    if (elapsedMs >= blinkDurationMs)
+                    {
+                        form.SetAlpha(0);
+                        return;
+                    }
 
-                    if (progress < halfBlinkTime)
-                    {
-                        alpha = (int)((double)progress / halfBlinkTime * 255);
-                    }
+                    // Position within the current blink cycle (ms)
+                    long posInCycle = elapsedMs % cycleMs;
+
+                    int alpha;
+                    if (posInCycle < halfCycleMs)
+                        alpha = (int)((double)posInCycle / halfCycleMs * 255);
                     else
-                    {
-                        alpha = (int)((double)(cycleTime - progress) / halfBlinkTime * 255);
-                    }
+                        alpha = (int)((double)(cycleMs - posInCycle) / halfCycleMs * 255);
 
                     form.SetAlpha(alpha);
                 };

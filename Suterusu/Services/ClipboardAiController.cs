@@ -72,7 +72,6 @@ namespace Suterusu.Services
             if (string.IsNullOrEmpty(LastAiResponse))
             {
                 _logger.Warn("F8: no previous AI response available.");
-                _notifications.NotifyFailure();
                 return HotkeyActionResult.Fail("No previous AI response.");
             }
 
@@ -82,13 +81,11 @@ namespace Suterusu.Services
             if (write.Success)
             {
                 _logger.Info("F8: last response copied to clipboard.");
-                _notifications.NotifySuccess();
                 return HotkeyActionResult.Ok();
             }
             else
             {
                 _logger.Error($"F8: clipboard write failed: {write.Error}");
-                _notifications.NotifyFailure();
                 return HotkeyActionResult.Fail(write.Error);
             }
         }
