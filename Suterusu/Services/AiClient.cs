@@ -298,15 +298,15 @@ namespace Suterusu.Services
                     }
                 }
             }
-            catch (TaskCanceledException)
-            {
-                _logger.Debug("request timed out");
-                return AiSingleAttemptResult.Fail("Request timed out.");
-            }
             catch (OperationCanceledException)
             {
-                _logger.Debug("operation cancelled");
-                throw; // propagate cancellation
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    _logger.Debug("operation cancelled");
+                    throw; // propagate cancellation (race lost or user cancel)
+                }
+                _logger.Debug("request timed out");
+                return AiSingleAttemptResult.Fail("Request timed out.");
             }
             catch (HttpRequestException ex)
             {
