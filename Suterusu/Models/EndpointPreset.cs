@@ -24,7 +24,7 @@ namespace Suterusu.Models
                 {
                     Name = "OpenAI",
                     BaseUrl = "https://api.openai.com/v1/chat/completions",
-                    DefaultModel = "gpt-4o-mini",
+                    DefaultModel = "gpt-5.4-mini",
                     RequiresApiKey = true,
                     Description = "Official OpenAI API - Fast, reliable, production-ready"
                 },
@@ -40,7 +40,7 @@ namespace Suterusu.Models
                 {
                     Name = "OpenRouter",
                     BaseUrl = "https://openrouter.ai/api/v1/chat/completions",
-                    DefaultModel = "openai/gpt-4o-mini",
+                    DefaultModel = "openai/gpt-5.4-mini",
                     RequiresApiKey = true,
                     Description = "Unified gateway to 200+ models with automatic fallback"
                 },

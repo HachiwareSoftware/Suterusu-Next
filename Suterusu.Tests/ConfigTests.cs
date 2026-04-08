@@ -49,7 +49,7 @@ namespace Suterusu.Tests
             var config = new AppConfig
             {
                 ApiBaseUrl   = "https://api.openai.com/",
-                Models       = new List<string> { "gpt-4o-mini" },
+                Models       = new List<string> { "gpt-5.4-mini" },
                 HistoryLimit = 10
             };
 
@@ -64,7 +64,7 @@ namespace Suterusu.Tests
             var config = new AppConfig
             {
                 ApiBaseUrl   = "https://api.openai.com///",
-                Models       = new List<string> { "gpt-4o-mini" },
+                Models       = new List<string> { "gpt-5.4-mini" },
                 HistoryLimit = 10
             };
 
@@ -79,7 +79,7 @@ namespace Suterusu.Tests
             var config = new AppConfig
             {
                 ApiBaseUrl   = "   ",
-                Models       = new List<string> { "gpt-4o-mini" },
+                Models       = new List<string> { "gpt-5.4-mini" },
                 HistoryLimit = 10
             };
 
@@ -98,7 +98,7 @@ namespace Suterusu.Tests
             var config = new AppConfig
             {
                 ApiBaseUrl   = "https://api.openai.com",
-                Models       = new List<string> { "gpt-4o-mini", "gpt-4o-mini", "gpt-4" },
+                Models       = new List<string> { "gpt-5.4", "gpt-5.3-codex", "gpt-5.4-mini" },
                 HistoryLimit = 10
             };
 
@@ -113,14 +113,14 @@ namespace Suterusu.Tests
             var config = new AppConfig
             {
                 ApiBaseUrl   = "https://api.openai.com",
-                Models       = new List<string> { "gpt-4o-mini", "", "  ", null },
+                Models       = new List<string> { "gpt-5.4-mini", "", "  ", null },
                 HistoryLimit = 10
             };
 
             config.Normalize();
 
             Assert.Single(config.Models);
-            Assert.Equal("gpt-4o-mini", config.Models[0]);
+            Assert.Equal("gpt-5.4-mini", config.Models[0]);
         }
 
         [Fact]
@@ -164,7 +164,7 @@ namespace Suterusu.Tests
             var config = new AppConfig
             {
                 ApiBaseUrl   = "https://api.openai.com",
-                Models       = new List<string> { "gpt-4o-mini" },
+                Models       = new List<string> { "gpt-5.4-mini" },
                 HistoryLimit = -5
             };
 
@@ -179,7 +179,7 @@ namespace Suterusu.Tests
             var config = new AppConfig
             {
                 ApiBaseUrl   = "https://api.openai.com",
-                Models       = new List<string> { "gpt-4o-mini" },
+                Models       = new List<string> { "gpt-5.4-mini" },
                 HistoryLimit = 200
             };
 
@@ -194,7 +194,7 @@ namespace Suterusu.Tests
             var config = new AppConfig
             {
                 ApiBaseUrl   = "https://api.openai.com",
-                Models       = new List<string> { "gpt-4o-mini" },
+                Models       = new List<string> { "gpt-5.4-mini" },
                 HistoryLimit = 42
             };
 
@@ -229,7 +229,7 @@ namespace Suterusu.Tests
             var config = new AppConfig
             {
                 ApiBaseUrl = "",
-                Models     = new List<string> { "gpt-4o-mini" }
+                Models     = new List<string> { "gpt-5.4-mini" }
             };
 
             var errors = config.Validate();
@@ -243,7 +243,7 @@ namespace Suterusu.Tests
             var config = new AppConfig
             {
                 ApiBaseUrl = "   ",
-                Models     = new List<string> { "gpt-4o-mini" }
+                Models     = new List<string> { "gpt-5.4-mini" }
             };
 
             var errors = config.Validate();

@@ -36,7 +36,27 @@ namespace Suterusu.Services
             IReadOnlyList<ChatMessage> messages,
             CancellationToken cancellationToken)
         {
-            _logger.Debug($"entering with {messages.Count} messages, {config.Models?.Count ?? 0} models configured");
+            _logger.Debug($"MultiRequestMode={config.MultiRequestMode}");
+
+            if (config.MultiRequestMode == MultiRequestMode.Sequential)
+            {
+                _logger.Debug("Using sequential mode");
+                return await SendSequentialAsync(config, messages, cancellationToken);
+            }
+
+            if (config.MultiRequestMode == MultiRequestMode.RoundRobin)
+            {
+                _logger.Debug("Using round-robin mode");
+                return await SendRoundRobinAsync(config, messages, cancellationToken);
+            }
+
+            if (config.MultiRequestMode == MultiRequestMode.Fastest)
+            {
+                _logger.Debug("Using fastest mode");
+                return await SendFastestAsync(config, messages, cancellationToken);
+            }
+
+            _logger.Debug("Falling back to old single-mode behavior");
 
             if (config.Models == null || config.Models.Count == 0)
             {
@@ -51,8 +71,13 @@ namespace Suterusu.Services
                 cancellationToken.ThrowIfCancellationRequested();
                 _logger.Info($"Trying model: {model}");
 
+                var defaultEndpoint = EndpointConfig.CreateDefault();
+                defaultEndpoint.BaseUrl = config.ApiBaseUrl;
+                defaultEndpoint.Models = config.Models;
+                defaultEndpoint.ApiKey = config.ApiKey;
+
                 AiSingleAttemptResult attempt = await SendToModelAsync(
-                    model, config, messages, cancellationToken).ConfigureAwait(false);
+                    model, defaultEndpoint, config, messages, cancellationToken).ConfigureAwait(false);
 
                 if (attempt.Success)
                 {
@@ -64,13 +89,152 @@ namespace Suterusu.Services
                 errors.Add($"[{model}] {attempt.Error}");
             }
 
-            string summary = "All models failed: " + string.Join("; ", errors);
+            string summary = "All models failed: " + string.Join(
+                "; ", errors);
             _logger.Error(summary);
             return AiResponseResult.Fail(summary);
         }
 
+        /// <summary>
+        /// Returns the effective endpoint list, preferring <see cref="AppConfig.ModelPriority"/>
+        /// (each entry becomes a single-model endpoint) over the legacy <see cref="AppConfig.Endpoints"/>.
+        /// </summary>
+        private static List<EndpointConfig> GetEndpoints(AppConfig config)
+        {
+            if (config.ModelPriority != null && config.ModelPriority.Count > 0)
+                return config.ModelPriority.ConvertAll(e => e.ToEndpointConfig());
+
+            return config.Endpoints ?? new List<EndpointConfig>();
+        }
+
+        private async Task<AiResponseResult> SendSequentialAsync(
+            AppConfig config,
+            IReadOnlyList<ChatMessage> messages,
+            CancellationToken cancellationToken)
+        {
+            var errors = new List<string>();
+            var endpoints = GetEndpoints(config);
+
+            foreach (var endpoint in endpoints)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                _logger.Info($"Trying endpoint: {endpoint.Name}");
+
+                var endpointResult = await SendToEndpointAsync(endpoint, config, messages, cancellationToken).ConfigureAwait(false);
+
+                if (endpointResult.Success)
+                {
+                    _logger.Info($"Success with endpoint: {endpoint.Name}");
+                    return AiResponseResult.Ok(endpointResult.Content, endpointResult.ModelUsed);
+                }
+
+                _logger.Warn($"Endpoint {endpoint.Name} failed: {endpointResult.Error}");
+                errors.Add($"[{endpoint.Name}] {endpointResult.Error}");
+            }
+
+            string summary = "All endpoints failed: " + string.Join(
+                "; ", errors);
+            _logger.Error(summary);
+            return AiResponseResult.Fail(summary);
+        }
+
+        private async Task<AiResponseResult> SendRoundRobinAsync(
+            AppConfig config,
+            IReadOnlyList<ChatMessage> messages,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var startIndex = config.RoundRobinIndex;
+            var endpoints = GetEndpoints(config);
+            int attempts = 0;
+
+            while (attempts < endpoints.Count)
+            {
+                var endpointIndex = (startIndex + attempts) % endpoints.Count;
+                var endpoint = endpoints[endpointIndex];
+
+                _logger.Info($"Round-robin trying endpoint: {endpoint.Name}");
+
+                var endpointResult = await SendToEndpointAsync(
+                    endpoint, config, messages, cancellationToken).ConfigureAwait(false);
+
+                if (endpointResult.Success)
+                {
+                    config.RoundRobinIndex = (endpointIndex + 1) % endpoints.Count;
+                    _logger.Info($"Success with endpoint: {endpoint.Name}");
+                    return AiResponseResult.Ok(endpointResult.Content, endpointResult.ModelUsed);
+                }
+
+                _logger.Warn($"Endpoint {endpoint.Name} failed: {endpointResult.Error}");
+                attempts++;
+            }
+
+            _logger.Error("All round-robin endpoints failed");
+            return AiResponseResult.Fail("All round-robin endpoints failed.");
+        }
+
+        private async Task<AiResponseResult> SendFastestAsync(
+            AppConfig config,
+            IReadOnlyList<ChatMessage> messages,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var tasks = new List<Task<AiEndpointAttemptResult>>();
+            foreach (var endpoint in GetEndpoints(config))
+            {
+                tasks.Add(SendToEndpointAsync(endpoint, config, messages, cancellationToken));
+            }
+
+            try
+            {
+                var completedTask = await Task.WhenAny(tasks).ConfigureAwait(false);
+                var result = await completedTask.ConfigureAwait(false);
+
+                if (result.Success)
+                {
+                    _logger.Info($"Fastest mode success with endpoint: {result.ModelUsed}");
+                    return AiResponseResult.Ok(result.Content, result.ModelUsed);
+                }
+
+                _logger.Warn($"Fastest mode first response failed: {result.Error}");
+                return AiResponseResult.Fail($"Fastest mode first response failed: {result.Error}");
+            }
+            catch (TaskCanceledException)
+            {
+                _logger.Debug("Fastest mode request timed out");
+                return AiResponseResult.Fail("Fastest mode request timed out.");
+            }
+        }
+
+        private async Task<AiEndpointAttemptResult> SendToEndpointAsync(
+            EndpointConfig endpoint,
+            AppConfig config,
+            IReadOnlyList<ChatMessage> messages,
+            CancellationToken cancellationToken)
+        {
+            foreach (var model in endpoint.Models)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                _logger.Info($"Trying model: {model}");
+
+                var attempt = await SendToModelAsync(model, endpoint, config, messages, cancellationToken).ConfigureAwait(false);
+
+                if (attempt.Success)
+                {
+                    return new AiEndpointAttemptResult(attempt.Content, model, true, null);
+                }
+
+                _logger.Warn($"Model {model} failed: {attempt.Error}");
+            }
+
+            return new AiEndpointAttemptResult(null, null, false, "All models in endpoint failed.");
+        }
+
         private async Task<AiSingleAttemptResult> SendToModelAsync(
             string model,
+            EndpointConfig endpoint,
             AppConfig config,
             IReadOnlyList<ChatMessage> messages,
             CancellationToken cancellationToken)
@@ -86,7 +250,7 @@ namespace Suterusu.Services
                 string json    = JsonSettings.SerializeCompact(request);
                 _logger.Debug($"serialized request JSON: {json}");
 
-                string baseUrl = config.ApiBaseUrl.TrimEnd('/');
+                string baseUrl = endpoint.BaseUrl.TrimEnd('/');
                 string url = baseUrl.EndsWith("/chat/completions") 
                     ? baseUrl 
                     : baseUrl + "/chat/completions";
@@ -97,12 +261,12 @@ namespace Suterusu.Services
                 {
                     httpRequest.Content = new StringContent(json, Encoding.UTF8, "application/json");
 
-                    bool hasApiKey = !string.IsNullOrWhiteSpace(config.ApiKey);
-                    _logger.Debug($"hasApiKey={hasApiKey}, key length={config.ApiKey?.Length ?? 0}");
+                    bool hasApiKey = !string.IsNullOrWhiteSpace(endpoint.ApiKey);
+                    _logger.Debug($"hasApiKey={hasApiKey}, key length={endpoint.ApiKey?.Length ?? 0}");
                     if (hasApiKey)
                     {
                         httpRequest.Headers.Authorization =
-                            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", config.ApiKey);
+                            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", endpoint.ApiKey);
                     }
 
                     _logger.Debug($"sending HTTP request to {url} with auth={hasApiKey}");
@@ -183,6 +347,32 @@ namespace Suterusu.Services
             _logger.Debug("disposing HTTP client");
             _httpClient?.Dispose();
             _httpClient = null;
+        }
+    }
+
+    public sealed class AiEndpointAttemptResult
+    {
+        public string Content { get; }
+        public string ModelUsed { get; }
+        public bool Success { get; }
+        public string Error { get; }
+
+        public AiEndpointAttemptResult(string content, string modelUsed, bool success, string error)
+        {
+            Content = content;
+            ModelUsed = modelUsed;
+            Success = success;
+            Error = error;
+        }
+
+        public static AiEndpointAttemptResult Ok(string content, string modelUsed)
+        {
+            return new AiEndpointAttemptResult(content, modelUsed, true, null);
+        }
+
+        public static AiEndpointAttemptResult Fail(string error)
+        {
+            return new AiEndpointAttemptResult(null, null, false, error);
         }
     }
 }

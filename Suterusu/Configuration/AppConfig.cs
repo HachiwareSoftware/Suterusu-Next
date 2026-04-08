@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using Suterusu.Models;
 
 namespace Suterusu.Configuration
 {
@@ -16,6 +17,21 @@ namespace Suterusu.Configuration
         public int HistoryLimit { get; set; }
 
         public NotificationMode NotificationMode { get; set; }
+
+        public MultiRequestMode MultiRequestMode { get; set; }
+
+        public int MultiRequestTimeoutMs { get; set; }
+
+        public List<EndpointConfig> Endpoints { get; set; }
+
+        public int RoundRobinIndex { get; set; }
+
+        /// <summary>
+        /// Flat ordered list of (endpoint, model) pairs used by all multi-request modes.
+        /// Models are tried top-to-bottom in Sequential mode, rotated in RoundRobin, raced in Fastest.
+        /// Replaces the old Endpoints list as the primary configuration.
+        /// </summary>
+        public List<ModelEntry> ModelPriority { get; set; }
 
         /// <summary>
         /// Process name (or partial name) of the window to flash, e.g. "Chrome".
@@ -35,6 +51,10 @@ namespace Suterusu.Configuration
         /// </summary>
         public int CircleDotPulseMs { get; set; }
 
+        public int CircleDotBlinkCount { get; set; }
+
+        public int CircleDotBlinkDurationMs { get; set; }
+
         public static AppConfig CreateDefault()
         {
             return new AppConfig
@@ -45,9 +65,16 @@ namespace Suterusu.Configuration
                 SystemPrompt          = "You are a helpful assistant.",
                 HistoryLimit          = 10,
                 NotificationMode      = NotificationMode.FlashWindow,
+                MultiRequestMode      = MultiRequestMode.RoundRobin,
+                MultiRequestTimeoutMs = 60000,
+                Endpoints             = new List<EndpointConfig>(),
+                RoundRobinIndex       = 0,
+                ModelPriority         = new List<ModelEntry>(),
                 FlashWindowTarget     = "Chrome",
                 FlashWindowDurationMs = 1600,
-                CircleDotPulseMs      = 800
+                CircleDotPulseMs      = 800,
+                CircleDotBlinkCount   = 3,
+                CircleDotBlinkDurationMs = 600
             };
         }
 
@@ -66,9 +93,6 @@ namespace Suterusu.Configuration
                 .Select(m => m.Trim())
                 .Distinct()
                 .ToList();
-
-            if (Models.Count == 0)
-                Models.Add("gpt-5.4-mini");
 
             if (string.IsNullOrWhiteSpace(SystemPrompt))
                 SystemPrompt = "You are a helpful assistant.";
@@ -94,6 +118,69 @@ namespace Suterusu.Configuration
             if (CircleDotPulseMs > 5000)
                 CircleDotPulseMs = 5000;
 
+            if (MultiRequestTimeoutMs <= 0)
+                MultiRequestTimeoutMs = 60000;
+
+            if (MultiRequestTimeoutMs > 120000)
+                MultiRequestTimeoutMs = 120000;
+
+            if (CircleDotBlinkCount < 1)
+                CircleDotBlinkCount = 3;
+
+            if (CircleDotBlinkCount > 10)
+                CircleDotBlinkCount = 10;
+
+            if (CircleDotBlinkDurationMs < 200)
+                CircleDotBlinkDurationMs = 200;
+
+            if (CircleDotBlinkDurationMs > 5000)
+                CircleDotBlinkDurationMs = 5000;
+
+            if (RoundRobinIndex < 0)
+                RoundRobinIndex = 0;
+
+            // Ensure ModelPriority is initialised
+            if (ModelPriority == null)
+                ModelPriority = new List<ModelEntry>();
+
+            // Migrate from old Endpoints list
+            if (ModelPriority.Count == 0 && Endpoints != null && Endpoints.Count > 0)
+            {
+                foreach (var ep in Endpoints)
+                {
+                    foreach (var model in ep.Models ?? new List<string>())
+                    {
+                        ModelPriority.Add(new ModelEntry
+                        {
+                            Name    = ep.Name ?? "Endpoint",
+                            BaseUrl = ep.BaseUrl,
+                            ApiKey  = ep.ApiKey ?? string.Empty,
+                            Model   = model
+                        });
+                    }
+                }
+            }
+
+            // Migrate from old single-endpoint fields
+            if (ModelPriority.Count == 0 && !string.IsNullOrWhiteSpace(ApiBaseUrl) && Models.Count > 0)
+            {
+                foreach (var model in Models)
+                {
+                    ModelPriority.Add(new ModelEntry
+                    {
+                        Name    = "Default",
+                        BaseUrl = ApiBaseUrl,
+                        ApiKey  = ApiKey ?? string.Empty,
+                        Model   = model
+                    });
+                }
+            }
+
+            // Remove entries that have no URL or model
+            ModelPriority = ModelPriority
+                .Where(e => !string.IsNullOrWhiteSpace(e.BaseUrl) && !string.IsNullOrWhiteSpace(e.Model))
+                .ToList();
+
             return this;
         }
 
@@ -101,11 +188,21 @@ namespace Suterusu.Configuration
         {
             var errors = new List<string>();
 
-            if (string.IsNullOrWhiteSpace(ApiBaseUrl))
-                errors.Add("API Base URL is required.");
-
-            if (Models == null || Models.Count == 0)
-                errors.Add("At least one model must be specified.");
+            if (ModelPriority == null || ModelPriority.Count == 0)
+            {
+                errors.Add("At least one entry must be added to the Model Priority list.");
+            }
+            else
+            {
+                for (int i = 0; i < ModelPriority.Count; i++)
+                {
+                    var entry = ModelPriority[i];
+                    if (string.IsNullOrWhiteSpace(entry.BaseUrl))
+                        errors.Add($"Entry {i + 1} ({entry.Name}) has no Base URL.");
+                    if (string.IsNullOrWhiteSpace(entry.Model))
+                        errors.Add($"Entry {i + 1} ({entry.Name}) has no model specified.");
+                }
+            }
 
             return errors;
         }

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Drawing;
 using System.Windows.Forms;
+using Suterusu.Configuration;
 using Suterusu.Interop;
 using Suterusu.Services;
 
@@ -9,36 +10,27 @@ namespace Suterusu.Notifications
 {
     /// <summary>
     /// Shows a small topmost, non-activating overlay dot (green = success, red = failure)
-    /// that pulses with a smooth sine-wave fade for a configurable duration, then auto-hides.
-    /// The sine animation always completes exactly two full cycles within the display period.
-    /// <para>
-    /// All overlay forms run on a single long-lived STA background thread so that
-    /// <see cref="System.Windows.Forms.Application.Run(Form)"/> is always called on the
-    /// same stable thread context. Spawning a new STA thread per notification causes
-    /// .NET Framework 4.8 WinForms to silently skip message-pump initialization on the
-    /// second and subsequent threads, making the form invisible.
-    /// </para>
+    /// that blinks from transparent to color for a configurable number of times.
     /// </summary>
     public class CircleDotNotificationService : INotificationService, IDisposable
     {
         private readonly ILogger _logger = new NLogLogger("Suterusu.Notification.CircleDot");
-        private readonly int _pulseDurationMs;
+        private readonly int _blinkCount;
+        private readonly int _blinkDurationMs;
 
         private const int DotSize      = 14;
         private const int MarginRight  = 20;
         private const int MarginBottom = 20;
-        private const int PulseTimerMs = 40;   // ~25 fps — smooth without being heavy
+        private const int BlinkTimerMs = 20;
 
-        // Single dedicated STA thread that owns all WinForms message loops.
-        private readonly BlockingCollection<Color> _queue
-            = new BlockingCollection<Color>();
+        private readonly BlockingCollection<(Color color, AppConfig config)> _queue
+            = new BlockingCollection<(Color color, AppConfig config)>();
         private readonly System.Threading.Thread _staThread;
 
-        public CircleDotNotificationService(int pulseDurationMs)
+        public CircleDotNotificationService(int blinkCount, int blinkDurationMs)
         {
-            // Guard: clamp internally so the service is safe even if called with an
-            // un-normalized config value (e.g. 0 from a freshly-constructed test config).
-            _pulseDurationMs = pulseDurationMs >= 200 ? pulseDurationMs : 800;
+            _blinkCount = blinkCount >= 1 ? blinkCount : 3;
+            _blinkDurationMs = blinkDurationMs >= 200 ? blinkDurationMs : 600;
 
             _staThread = new System.Threading.Thread(ProcessQueue);
             _staThread.SetApartmentState(System.Threading.ApartmentState.STA);
@@ -47,12 +39,11 @@ namespace Suterusu.Notifications
             _staThread.Start();
         }
 
-        public void NotifySuccess() => _queue.TryAdd(Color.LimeGreen);
-        public void NotifyFailure() => _queue.TryAdd(Color.Crimson);
+        public void NotifySuccess() => _queue.TryAdd((Color.LimeGreen, null));
+        public void NotifyFailure() => _queue.TryAdd((Color.Crimson, null));
 
         public void Dispose()
         {
-            // Signal the STA thread to drain and exit.
             _queue.CompleteAdding();
         }
 
@@ -60,9 +51,9 @@ namespace Suterusu.Notifications
         {
             try
             {
-                foreach (Color color in _queue.GetConsumingEnumerable())
+                foreach (var item in _queue.GetConsumingEnumerable())
                 {
-                    try { DoShowDot(color, _pulseDurationMs); }
+                    try { DoShowDot(item.color, _blinkCount, _blinkDurationMs); }
                     catch (Exception ex) { _logger.Error("CircleDot overlay error.", ex); }
                 }
             }
@@ -72,22 +63,19 @@ namespace Suterusu.Notifications
             }
         }
 
-        private static void DoShowDot(Color color, int pulseDurationMs)
+        private static void DoShowDot(Color color, int blinkCount, int blinkDurationMs)
         {
-            // Position in lower-right corner of the primary screen.
             Rectangle screen = Screen.PrimaryScreen.WorkingArea;
             int x = screen.Right  - DotSize - MarginRight;
             int y = screen.Bottom - DotSize - MarginBottom;
 
-            // Phase increment per timer tick so that exactly 2 full sine cycles (4π)
-            // fill the total display duration.
-            int    totalTicks     = Math.Max(1, pulseDurationMs / PulseTimerMs);
-            double phaseIncrement = (4.0 * Math.PI) / totalTicks;
+            int totalBlinks = blinkCount;
+            int blinkTime = blinkDurationMs / totalBlinks;
+            int halfBlinkTime = blinkTime / 2;
 
             using (var form = new OverlayForm(color, x, y, DotSize))
             {
-                // Auto-close timer.
-                var closeTimer = new Timer { Interval = pulseDurationMs };
+                var closeTimer = new Timer { Interval = blinkDurationMs + 100 };
                 closeTimer.Tick += (s, e) =>
                 {
                     closeTimer.Stop();
@@ -95,34 +83,48 @@ namespace Suterusu.Notifications
                 };
                 closeTimer.Start();
 
-                // Pulse animation timer — advances the sine phase each tick.
-                var pulseTimer = new Timer { Interval = PulseTimerMs };
-                pulseTimer.Tick += (s, e) => form.AdvancePulse(phaseIncrement);
-                pulseTimer.Start();
+                var blinkTimer = new Timer { Interval = BlinkTimerMs };
+                int blinkPhase = 0;
+                int alpha = 0;
+
+                blinkTimer.Tick += (s, e) =>
+                {
+                    blinkPhase++;
+                    int cycleTime = blinkTime * 2;
+                    int progress = blinkPhase % cycleTime;
+
+                    if (progress < halfBlinkTime)
+                    {
+                        alpha = (int)((double)progress / halfBlinkTime * 255);
+                    }
+                    else
+                    {
+                        alpha = (int)((double)(cycleTime - progress) / halfBlinkTime * 255);
+                    }
+
+                    form.SetAlpha(alpha);
+                };
+                blinkTimer.Start();
 
                 System.Windows.Forms.Application.Run(form);
 
-                pulseTimer.Stop();
-                pulseTimer.Dispose();
+                blinkTimer.Stop();
+                blinkTimer.Dispose();
                 closeTimer.Dispose();
             }
         }
 
-        // -----------------------------------------------------------------------
-        // Inner overlay form
-        // -----------------------------------------------------------------------
         private sealed class OverlayForm : Form
         {
             private readonly Color _dotColor;
-            private double _pulsePhase;          // current sine phase in radians
-            private int    _pulseAlpha = 255;    // 40–255, driven by sine wave
+            private int _alpha = 0;
 
             public OverlayForm(Color dotColor, int x, int y, int size)
             {
                 _dotColor = dotColor;
 
                 FormBorderStyle = FormBorderStyle.None;
-                BackColor       = Color.Magenta;    // transparent key colour
+                BackColor       = Color.Magenta;
                 TransparencyKey = Color.Magenta;
                 StartPosition   = FormStartPosition.Manual;
                 Location        = new Point(x, y);
@@ -133,26 +135,19 @@ namespace Suterusu.Notifications
                 SetStyle(ControlStyles.SupportsTransparentBackColor, true);
             }
 
-            /// <summary>
-            /// Advances the sine phase by <paramref name="increment"/> radians and repaints.
-            /// Maps sin ∈ [−1, 1] to alpha ∈ [40, 255] so the dot never goes fully invisible.
-            /// </summary>
-            public void AdvancePulse(double increment)
+            public void SetAlpha(int alpha)
             {
-                _pulsePhase += increment;
-                _pulseAlpha  = (int)(((Math.Sin(_pulsePhase) + 1.0) / 2.0) * 215.0) + 40;
+                _alpha = Math.Max(0, Math.Min(255, alpha));
                 Invalidate();
             }
 
             protected override void OnHandleCreated(EventArgs e)
             {
                 base.OnHandleCreated(e);
-                // WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW — prevents focus steal and taskbar entry.
                 int exStyle = NativeMethods.GetWindowLong(Handle, NativeMethods.GWL_EXSTYLE);
                 exStyle |= NativeMethods.WS_EX_NOACTIVATE | NativeMethods.WS_EX_TOOLWINDOW;
                 NativeMethods.SetWindowLong(Handle, NativeMethods.GWL_EXSTYLE, exStyle);
 
-                // Force topmost via SetWindowPos so it survives other topmost windows.
                 NativeMethods.SetWindowPos(
                     Handle,
                     new IntPtr(NativeMethods.HWND_TOPMOST),
@@ -164,7 +159,7 @@ namespace Suterusu.Notifications
             {
                 base.OnPaint(e);
                 e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-                using (var brush = new SolidBrush(Color.FromArgb(_pulseAlpha, _dotColor)))
+                using (var brush = new SolidBrush(Color.FromArgb(_alpha, _dotColor)))
                 {
                     const int margin = 1;
                     e.Graphics.FillEllipse(brush,

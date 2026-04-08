@@ -12,22 +12,22 @@ namespace Suterusu.Tests
         [Fact]
         public void AiResponseResult_Ok_HasSuccessTrue()
         {
-            var result = AiResponseResult.Ok("Some content", "gpt-4o-mini");
+            var result = AiResponseResult.Ok("Some content", "gpt-5.4-mini");
             Assert.True(result.Success);
         }
 
         [Fact]
         public void AiResponseResult_Ok_HasCorrectContent()
         {
-            var result = AiResponseResult.Ok("Response body", "gpt-4o-mini");
+            var result = AiResponseResult.Ok("Response body", "gpt-5.4-mini");
             Assert.Equal("Response body", result.Content);
         }
 
         [Fact]
         public void AiResponseResult_Ok_HasCorrectModelUsed()
         {
-            var result = AiResponseResult.Ok("Response body", "gpt-4o-mini");
-            Assert.Equal("gpt-4o-mini", result.ModelUsed);
+            var result = AiResponseResult.Ok("Response body", "gpt-5.4-mini");
+            Assert.Equal("gpt-5.4-mini", result.ModelUsed);
         }
 
         [Fact]
