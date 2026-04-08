@@ -139,50 +139,51 @@ namespace Suterusu.Services
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var tasks = new List<Task<AiEndpointAttemptResult>>();
-            foreach (var endpoint in GetEndpoints(config))
+            using (var raceCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
             {
-                tasks.Add(SendToEndpointAsync(endpoint, config, messages, cancellationToken));
+                var raceToken = raceCts.Token;
+
+                var tasks = new List<Task<AiEndpointAttemptResult>>();
+                foreach (var endpoint in GetEndpoints(config))
+                {
+                    tasks.Add(SendToEndpointAsync(endpoint, config, messages, raceToken));
+                }
+
+                var remaining = new List<Task<AiEndpointAttemptResult>>(tasks);
+                while (remaining.Count > 0)
+                {
+                    Task<AiEndpointAttemptResult> completedTask = await Task.WhenAny(remaining).ConfigureAwait(false);
+                    remaining.Remove(completedTask);
+
+                    AiEndpointAttemptResult result;
+                    try
+                    {
+                        result = await completedTask.ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        _logger.Debug("Fastest mode: a request was cancelled");
+                        continue;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Warn($"Fastest mode: a request threw unexpectedly: {ex.Message}");
+                        continue;
+                    }
+
+                    if (result.Success)
+                    {
+                        raceCts.Cancel();
+                        _logger.Info($"Fastest mode success with endpoint: {result.ModelUsed}");
+                        return AiResponseResult.Ok(result.Content, result.ModelUsed);
+                    }
+
+                    _logger.Warn($"Fastest mode: endpoint failed ({result.Error}), waiting for next.");
+                }
+
+                _logger.Error("Fastest mode: all endpoints failed.");
+                return AiResponseResult.Fail("Fastest mode: all endpoints failed.");
             }
-
-            var remaining = new List<Task<AiEndpointAttemptResult>>(tasks);
-            while (remaining.Count > 0)
-            {
-                Task<AiEndpointAttemptResult> completedTask;
-                try
-                {
-                    completedTask = await Task.WhenAny(remaining).ConfigureAwait(false);
-                }
-                catch (TaskCanceledException)
-                {
-                    _logger.Debug("Fastest mode request timed out");
-                    return AiResponseResult.Fail("Fastest mode request timed out.");
-                }
-
-                remaining.Remove(completedTask);
-
-                AiEndpointAttemptResult result;
-                try
-                {
-                    result = await completedTask.ConfigureAwait(false);
-                }
-                catch (TaskCanceledException)
-                {
-                    _logger.Debug("Fastest mode request timed out");
-                    return AiResponseResult.Fail("Fastest mode request timed out.");
-                }
-
-                if (result.Success)
-                {
-                    _logger.Info($"Fastest mode success with endpoint: {result.ModelUsed}");
-                    return AiResponseResult.Ok(result.Content, result.ModelUsed);
-                }
-
-                _logger.Warn($"Fastest mode: endpoint failed ({result.Error}), waiting for next.");
-            }
-
-            _logger.Error("Fastest mode: all endpoints failed.");
-            return AiResponseResult.Fail("Fastest mode: all endpoints failed.");
         }
 
         private async Task<AiEndpointAttemptResult> SendToEndpointAsync(
