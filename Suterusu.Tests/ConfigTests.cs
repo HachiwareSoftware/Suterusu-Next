@@ -42,6 +42,17 @@ namespace Suterusu.Tests
             Assert.False(string.IsNullOrWhiteSpace(config.SystemPrompt));
         }
 
+        [Fact]
+        public void CreateDefault_UsesExpectedHotkeyBindings()
+        {
+            var config = AppConfig.CreateDefault();
+
+            Assert.Equal("F6", config.ClearHistoryHotkey);
+            Assert.Equal("F7", config.SendClipboardHotkey);
+            Assert.Equal("F8", config.CopyLastResponseHotkey);
+            Assert.Equal("F12", config.QuitApplicationHotkey);
+        }
+
         // -----------------------------------------------------------------------
         // Normalize — ModelPriority filtering
         // -----------------------------------------------------------------------
@@ -164,6 +175,66 @@ namespace Suterusu.Tests
             Assert.Same(config, returned);
         }
 
+        [Fact]
+        public void Normalize_ReplacesInvalidHotkeys_WithDefaults()
+        {
+            var config = new AppConfig
+            {
+                ModelPriority = new List<ModelEntry> { ValidEntry() },
+                ClearHistoryHotkey = "bad-key",
+                SendClipboardHotkey = "f13",
+                CopyLastResponseHotkey = null,
+                QuitApplicationHotkey = "   "
+            };
+
+            config.Normalize();
+
+            Assert.Equal("F6", config.ClearHistoryHotkey);
+            Assert.Equal("F13", config.SendClipboardHotkey);
+            Assert.Equal("F8", config.CopyLastResponseHotkey);
+            Assert.Equal("F12", config.QuitApplicationHotkey);
+        }
+
+        [Fact]
+        public void Normalize_CanonicalizesValidKeyCombinations()
+        {
+            var config = new AppConfig
+            {
+                ModelPriority = new List<ModelEntry> { ValidEntry() },
+                ClearHistoryHotkey = "control + shift + k",
+                SendClipboardHotkey = "win+v",
+                CopyLastResponseHotkey = "alt + f9",
+                QuitApplicationHotkey = "ctrl+alt+delete"
+            };
+
+            config.Normalize();
+
+            Assert.Equal("Ctrl+Shift+K", config.ClearHistoryHotkey);
+            Assert.Equal("Win+V", config.SendClipboardHotkey);
+            Assert.Equal("Alt+F9", config.CopyLastResponseHotkey);
+            Assert.Equal("Ctrl+Alt+DELETE", config.QuitApplicationHotkey);
+        }
+
+        [Fact]
+        public void Normalize_ResetsDuplicateHotkeys_ToDefaults()
+        {
+            var config = new AppConfig
+            {
+                ModelPriority = new List<ModelEntry> { ValidEntry() },
+                ClearHistoryHotkey = "F9",
+                SendClipboardHotkey = "F9",
+                CopyLastResponseHotkey = "F10",
+                QuitApplicationHotkey = "F11"
+            };
+
+            config.Normalize();
+
+            Assert.Equal("F6", config.ClearHistoryHotkey);
+            Assert.Equal("F7", config.SendClipboardHotkey);
+            Assert.Equal("F8", config.CopyLastResponseHotkey);
+            Assert.Equal("F12", config.QuitApplicationHotkey);
+        }
+
         // -----------------------------------------------------------------------
         // Validate
         // -----------------------------------------------------------------------
@@ -246,6 +317,40 @@ namespace Suterusu.Tests
             var errors = config.Validate();
 
             Assert.True(errors.Count >= 2);
+        }
+
+        [Fact]
+        public void Validate_ReturnsError_WhenHotkeysAreDuplicated()
+        {
+            var config = new AppConfig
+            {
+                ModelPriority = new List<ModelEntry> { ValidEntry() },
+                ClearHistoryHotkey = "Ctrl+K",
+                SendClipboardHotkey = "control+k",
+                CopyLastResponseHotkey = "F8",
+                QuitApplicationHotkey = "F12"
+            };
+
+            var errors = config.Validate();
+
+            Assert.Contains(errors, error => error.Contains("assigned more than once"));
+        }
+
+        [Fact]
+        public void Validate_ReturnsError_WhenHotkeyIsOutsideSupportedRange()
+        {
+            var config = new AppConfig
+            {
+                ModelPriority = new List<ModelEntry> { ValidEntry() },
+                ClearHistoryHotkey = "Ctrl+Alt",
+                SendClipboardHotkey = "F7",
+                CopyLastResponseHotkey = "F8",
+                QuitApplicationHotkey = "F12"
+            };
+
+            var errors = config.Validate();
+
+            Assert.Contains(errors, error => error.Contains("Clear history hotkey"));
         }
     }
 }

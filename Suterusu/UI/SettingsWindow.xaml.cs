@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using Suterusu.Configuration;
 using Suterusu.Models;
 using Suterusu.Services;
@@ -13,17 +14,21 @@ namespace Suterusu.UI
     {
         private readonly ConfigManager         _configManager;
         private readonly ClipboardAiController _controller;
+        private readonly Action<AppConfig>     _configSaved;
         private readonly ILogger               _logger = new NLogLogger("Suterusu.Settings");
+        private readonly Dictionary<GlobalHotkey, string> _hotkeyBindings = new Dictionary<GlobalHotkey, string>();
 
         // -2 = not in edit mode, -1 = adding new entry, >= 0 = editing existing entry
         private int  _editingEntryIndex    = -2;
         private bool _isApplyingEntryPreset;
         private bool _isSyncingEntryPreset;
+        private GlobalHotkey? _capturingHotkey;
 
-        public SettingsWindow(ConfigManager configManager, ClipboardAiController controller = null)
+        public SettingsWindow(ConfigManager configManager, ClipboardAiController controller = null, Action<AppConfig> configSaved = null)
         {
             _configManager = configManager;
             _controller    = controller;
+            _configSaved   = configSaved;
 
             InitializeComponent();
 
@@ -55,6 +60,22 @@ namespace Suterusu.UI
             TxtMultiRequestTimeoutMs.Text     = config.MultiRequestTimeoutMs.ToString();
             TxtSystemPrompt.Text              = config.SystemPrompt ?? string.Empty;
 
+            _hotkeyBindings[GlobalHotkey.ClearHistory] = HotkeyBindingHelper.NormalizeBindingName(
+                config.ClearHistoryHotkey,
+                GlobalHotkey.ClearHistory);
+            _hotkeyBindings[GlobalHotkey.SendClipboard] = HotkeyBindingHelper.NormalizeBindingName(
+                config.SendClipboardHotkey,
+                GlobalHotkey.SendClipboard);
+            _hotkeyBindings[GlobalHotkey.CopyLastResponse] = HotkeyBindingHelper.NormalizeBindingName(
+                config.CopyLastResponseHotkey,
+                GlobalHotkey.CopyLastResponse);
+            _hotkeyBindings[GlobalHotkey.QuitApplication] = HotkeyBindingHelper.NormalizeBindingName(
+                config.QuitApplicationHotkey,
+                GlobalHotkey.QuitApplication);
+
+            _capturingHotkey = null;
+            UpdateHotkeyButtonLabels();
+
             SetNotificationMode(config.NotificationMode);
             SetMultiRequestMode(config.MultiRequestMode);
             HideValidation();
@@ -80,14 +101,18 @@ namespace Suterusu.UI
                 FlashWindowDurationMs    = _configManager.Current.FlashWindowDurationMs,
                 CircleDotBlinkCount      = int.TryParse(TxtCircleDotBlinkCount.Text, out int blinkCount) ? blinkCount : 3,
                 CircleDotBlinkDurationMs = int.TryParse(TxtCircleDotBlinkDurationMs.Text, out int blinkDuration) ? blinkDuration : 600,
-                RoundRobinIndex          = _configManager.Current.RoundRobinIndex
+                RoundRobinIndex          = _configManager.Current.RoundRobinIndex,
+                ClearHistoryHotkey       = GetStoredHotkey(GlobalHotkey.ClearHistory),
+                SendClipboardHotkey      = GetStoredHotkey(GlobalHotkey.SendClipboard),
+                CopyLastResponseHotkey   = GetStoredHotkey(GlobalHotkey.CopyLastResponse),
+                QuitApplicationHotkey    = GetStoredHotkey(GlobalHotkey.QuitApplication)
             };
         }
 
         private bool TrySave()
         {
             AppConfig config = BuildConfigFromInputs();
-            var errors = config.Normalize().Validate();
+            var errors = config.Validate();
 
             if (errors.Count > 0)
             {
@@ -103,6 +128,7 @@ namespace Suterusu.UI
             }
 
             _controller?.RefreshConfiguration();
+            _configSaved?.Invoke(_configManager.Current);
             _logger.Info("Settings saved and configuration refreshed.");
             HideValidation();
             return true;
@@ -315,6 +341,85 @@ namespace Suterusu.UI
         {
             PnlEntryEdit.Visibility = Visibility.Collapsed;
             _editingEntryIndex = -2;
+        }
+
+        // ── Hotkey capture ────────────────────────────────────────────────────
+
+        private void OnHotkeyButtonClick(object sender, RoutedEventArgs e)
+        {
+            GlobalHotkey hotkey = GetHotkeyFromButton((Button)sender);
+
+            if (_capturingHotkey == hotkey)
+            {
+                _capturingHotkey = null;
+                UpdateHotkeyButtonLabels();
+                return;
+            }
+
+            _capturingHotkey = hotkey;
+            UpdateHotkeyButtonLabels();
+            HideValidation();
+            Focus();
+        }
+
+        private void OnWindowPreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (_capturingHotkey == null)
+                return;
+
+            Key key = e.Key == Key.System ? e.SystemKey : e.Key;
+            if (key == Key.Escape)
+            {
+                _capturingHotkey = null;
+                UpdateHotkeyButtonLabels();
+                e.Handled = true;
+                return;
+            }
+
+            if (HotkeyBindingHelper.TryBuildBindingFromKeyEvent(key, Keyboard.Modifiers, out string bindingName))
+            {
+                _hotkeyBindings[_capturingHotkey.Value] = bindingName;
+                _capturingHotkey = null;
+                UpdateHotkeyButtonLabels();
+                HideValidation();
+                e.Handled = true;
+            }
+        }
+
+        private string GetStoredHotkey(GlobalHotkey hotkey)
+        {
+            return _hotkeyBindings.TryGetValue(hotkey, out string bindingName)
+                ? bindingName
+                : HotkeyBindingHelper.GetDefaultBinding(hotkey);
+        }
+
+        private void UpdateHotkeyButtonLabels()
+        {
+            BtnClearHistoryHotkey.Content = GetHotkeyButtonText(GlobalHotkey.ClearHistory);
+            BtnSendClipboardHotkey.Content = GetHotkeyButtonText(GlobalHotkey.SendClipboard);
+            BtnCopyLastResponseHotkey.Content = GetHotkeyButtonText(GlobalHotkey.CopyLastResponse);
+            BtnQuitApplicationHotkey.Content = GetHotkeyButtonText(GlobalHotkey.QuitApplication);
+
+            TxtHotkeyCaptureHint.Text = _capturingHotkey == null
+                ? "Click a binding, then press the key combination you want. It is saved immediately. Press ESC to cancel. Each action must use a different combination."
+                : "Capture mode is active. Press the key combination you want to save it immediately, or press ESC to cancel.";
+        }
+
+        private string GetHotkeyButtonText(GlobalHotkey hotkey)
+        {
+            if (_capturingHotkey != hotkey)
+                return GetStoredHotkey(hotkey);
+
+            return "Press keys...";
+        }
+
+        private GlobalHotkey GetHotkeyFromButton(Button button)
+        {
+            if (ReferenceEquals(button, BtnClearHistoryHotkey)) return GlobalHotkey.ClearHistory;
+            if (ReferenceEquals(button, BtnSendClipboardHotkey)) return GlobalHotkey.SendClipboard;
+            if (ReferenceEquals(button, BtnCopyLastResponseHotkey)) return GlobalHotkey.CopyLastResponse;
+            if (ReferenceEquals(button, BtnQuitApplicationHotkey)) return GlobalHotkey.QuitApplication;
+            throw new InvalidOperationException("Unknown hotkey button.");
         }
 
         // ── Notification / multi-request mode ────────────────────────────────

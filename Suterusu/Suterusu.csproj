@@ -65,10 +65,12 @@
     <Compile Include="Bootstrap\StartupOptions.cs" />
     <Compile Include="Configuration\AppConfig.cs" />
     <Compile Include="Configuration\ConfigManager.cs" />
+    <Compile Include="Configuration\HotkeyBindingHelper.cs" />
     <Compile Include="Configuration\MultiRequestMode.cs" />
     <Compile Include="Configuration\NotificationMode.cs" />
     <Compile Include="Hooks\KeyboardHook.cs" />
     <Compile Include="Interop\NativeMethods.cs" />
+    <Compile Include="Interop\VirtualDesktopHelper.cs" />
     <Compile Include="Models\AiResponseResult.cs" />
     <Compile Include="Models\AiSingleAttemptResult.cs" />
     <Compile Include="Models\ChatCompletionRequest.cs" />
@@ -80,6 +82,7 @@
     <Compile Include="Models\EndpointConfig.cs" />
     <Compile Include="Models\ModelEntry.cs" />
     <Compile Include="Models\GlobalHotkey.cs" />
+    <Compile Include="Models\HotkeyBinding.cs" />
     <Compile Include="Models\HotkeyActionResult.cs" />
     <Compile Include="Models\QueuedClipboardRequest.cs" />
     <Compile Include="Models\SaveConfigResult.cs" />

@@ -41,6 +41,15 @@ namespace Suterusu.Interop
         public const int SW_HIDE = 0;
         public const int SW_SHOW = 5;
 
+        // COM initialization flags
+        public const uint COINIT_APARTMENTTHREADED = 0x00000002;
+
+        // COM class context / HRESULT values
+        public const uint CLSCTX_INPROC_SERVER = 0x1;
+        public const int S_OK = 0;
+        public const int S_FALSE = 1;
+        public const int RPC_E_CHANGED_MODE = unchecked((int)0x80010106);
+
         // GetWindowLong / SetWindowLong
         public const int GWL_EXSTYLE       = -20;
         public const int WS_EX_TOOLWINDOW  = 0x00000080;
@@ -166,12 +175,47 @@ namespace Suterusu.Interop
         public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
 
         [DllImport("user32.dll")]
-        public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-
-        [DllImport("user32.dll", SetLastError = true)]
         public static extern int GetWindowLong(IntPtr hWnd, int nIndex);
 
         [DllImport("user32.dll")]
         public static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+
+        [DllImport("user32.dll")]
+        public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        // Virtual Desktop support
+        public static readonly Guid CLSID_VirtualDesktopManager = new Guid("AA509086-5CA9-4C25-8F95-589D3C07B48A");
+        public static readonly Guid IID_IVirtualDesktopManager = new Guid("A5CD92FF-29BE-454C-8D04-D82879FB3F1B");
+
+        // COM initialization
+        [DllImport("ole32.dll")]
+        public static extern int CoInitializeEx(IntPtr pvReserved, uint dwCoInit);
+
+        [DllImport("ole32.dll")]
+        public static extern void CoUninitialize();
+
+        [DllImport("ole32.dll")]
+        public static extern int CoCreateInstance(
+            [In] ref Guid rclsid,
+            IntPtr pUnkOuter,
+            uint dwClsContext,
+            [In] ref Guid riid,
+            [MarshalAs(UnmanagedType.Interface)] out object ppv);
     }
+}
+
+// Virtual Desktop interfaces
+[ComImport]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+[Guid("A5CD92FF-29BE-454C-8D04-D82879FB3F1B")]
+public interface IVirtualDesktopManager
+{
+    [PreserveSig]
+    int IsWindowOnCurrentVirtualDesktop(IntPtr hWnd, [MarshalAs(UnmanagedType.Bool)] out bool onCurrentDesktop);
+
+    [PreserveSig]
+    int GetWindowDesktopId(IntPtr hWnd, out Guid desktopId);
+
+    [PreserveSig]
+    int MoveWindowToDesktop(IntPtr hWnd, [In] ref Guid desktopId);
 }

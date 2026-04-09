@@ -8,6 +8,7 @@
         MinHeight="620"
         WindowStartupLocation="CenterScreen"
         ResizeMode="CanResize"
+        PreviewKeyDown="OnWindowPreviewKeyDown"
         Background="#303030"
         Foreground="#D4D4D4"
         FontFamily="Segoe UI"
@@ -255,6 +256,34 @@
 
                         <TextBlock Style="{StaticResource LabelStyle}" Text="History limit (turns)" />
                         <TextBox x:Name="TxtHistoryLimit" Width="100" HorizontalAlignment="Left" />
+
+                        <TextBlock Style="{StaticResource LabelStyle}" Text="Hotkeys" />
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="180" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource LabelStyle}" Margin="0,0,12,4" Text="Clear chat history" VerticalAlignment="Center" />
+                            <Button Grid.Row="0" Grid.Column="1" x:Name="BtnClearHistoryHotkey" Style="{StaticResource SecondaryButtonStyle}" Click="OnHotkeyButtonClick" />
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource LabelStyle}" Margin="0,2,12,4" Text="Read clipboard and send" VerticalAlignment="Center" />
+                            <Button Grid.Row="1" Grid.Column="1" x:Name="BtnSendClipboardHotkey" Style="{StaticResource SecondaryButtonStyle}" Click="OnHotkeyButtonClick" />
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource LabelStyle}" Margin="0,2,12,4" Text="Copy last AI response" VerticalAlignment="Center" />
+                            <Button Grid.Row="2" Grid.Column="1" x:Name="BtnCopyLastResponseHotkey" Style="{StaticResource SecondaryButtonStyle}" Click="OnHotkeyButtonClick" />
+
+                            <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource LabelStyle}" Margin="0,2,12,0" Text="Quit application" VerticalAlignment="Center" />
+                            <Button Grid.Row="3" Grid.Column="1" x:Name="BtnQuitApplicationHotkey" Style="{StaticResource SecondaryButtonStyle}" Click="OnHotkeyButtonClick" />
+                        </Grid>
+                        <TextBlock x:Name="TxtHotkeyCaptureHint" Style="{StaticResource HintStyle}" Margin="0,0,0,6"
+                                   Text="Click a binding, then press the key combination you want. It is saved immediately. Press ESC to cancel. Each action must use a different combination." />
 
                         <TextBlock Style="{StaticResource LabelStyle}" Text="Notification mode" />
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,6">

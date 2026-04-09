@@ -10,10 +10,10 @@ using Suterusu.Notifications;
 namespace Suterusu.Services
 {
     /// <summary>
-    /// Coordinates F6/F7/F8 runtime behavior.
-    /// F7 enqueues clipboard send requests processed serially.
-    /// F8 copies last AI response back to clipboard.
-    /// F6 clears history.
+    /// Coordinates global hotkey runtime behavior.
+    /// Send clipboard enqueues requests processed serially.
+    /// Copy last response writes the last AI response back to clipboard.
+    /// Clear history resets the chat state.
     /// </summary>
     public class ClipboardAiController : IDisposable
     {
@@ -71,7 +71,7 @@ namespace Suterusu.Services
 
             if (string.IsNullOrEmpty(LastAiResponse))
             {
-                _logger.Warn("F8: no previous AI response available.");
+                _logger.Warn("CopyLastResponse: no previous AI response available.");
                 return HotkeyActionResult.Fail("No previous AI response.");
             }
 
@@ -80,12 +80,12 @@ namespace Suterusu.Services
             ClipboardWriteResult write = _clipboardService.TryWriteText(LastAiResponse);
             if (write.Success)
             {
-                _logger.Info("F8: last response copied to clipboard.");
+                _logger.Info("CopyLastResponse: last response copied to clipboard.");
                 return HotkeyActionResult.Ok();
             }
             else
             {
-                _logger.Error($"F8: clipboard write failed: {write.Error}");
+                _logger.Error($"CopyLastResponse: clipboard write failed: {write.Error}");
                 return HotkeyActionResult.Fail(write.Error);
             }
         }
@@ -193,11 +193,11 @@ namespace Suterusu.Services
                 return;
             }
 
-            // Record last response (F8 will write to clipboard)
+            // Record last response for the copy hotkey.
             _chatHistory.AppendSuccessfulTurn(userText, aiResult.Content);
             LastAiResponse = aiResult.Content;
 
-            _logger.Info($"AI response received via model {aiResult.ModelUsed}. Press F8 to copy to clipboard.");
+            _logger.Info($"AI response received via model {aiResult.ModelUsed}. Press {_configManager.Current.CopyLastResponseHotkey} to copy to clipboard.");
             _notifications.NotifySuccess();
         }
 

@@ -39,6 +39,14 @@ namespace Suterusu.Configuration
 
         public int CircleDotBlinkDurationMs { get; set; }
 
+        public string ClearHistoryHotkey { get; set; }
+
+        public string SendClipboardHotkey { get; set; }
+
+        public string CopyLastResponseHotkey { get; set; }
+
+        public string QuitApplicationHotkey { get; set; }
+
         public static AppConfig CreateDefault()
         {
             return new AppConfig
@@ -53,7 +61,11 @@ namespace Suterusu.Configuration
                 FlashWindowTarget        = "Chrome",
                 FlashWindowDurationMs    = 1600,
                 CircleDotBlinkCount      = 3,
-                CircleDotBlinkDurationMs = 600
+                CircleDotBlinkDurationMs = 600,
+                ClearHistoryHotkey       = HotkeyBindingHelper.GetDefaultBinding(GlobalHotkey.ClearHistory),
+                SendClipboardHotkey      = HotkeyBindingHelper.GetDefaultBinding(GlobalHotkey.SendClipboard),
+                CopyLastResponseHotkey   = HotkeyBindingHelper.GetDefaultBinding(GlobalHotkey.CopyLastResponse),
+                QuitApplicationHotkey    = HotkeyBindingHelper.GetDefaultBinding(GlobalHotkey.QuitApplication)
             };
         }
 
@@ -95,6 +107,31 @@ namespace Suterusu.Configuration
             if (CircleDotBlinkDurationMs > 5000)
                 CircleDotBlinkDurationMs = 5000;
 
+            ClearHistoryHotkey = HotkeyBindingHelper.NormalizeBindingName(
+                ClearHistoryHotkey,
+                GlobalHotkey.ClearHistory);
+            SendClipboardHotkey = HotkeyBindingHelper.NormalizeBindingName(
+                SendClipboardHotkey,
+                GlobalHotkey.SendClipboard);
+            CopyLastResponseHotkey = HotkeyBindingHelper.NormalizeBindingName(
+                CopyLastResponseHotkey,
+                GlobalHotkey.CopyLastResponse);
+            QuitApplicationHotkey = HotkeyBindingHelper.NormalizeBindingName(
+                QuitApplicationHotkey,
+                GlobalHotkey.QuitApplication);
+
+            if (HotkeyBindingHelper.GetDuplicateBindingErrors(
+                ClearHistoryHotkey,
+                SendClipboardHotkey,
+                CopyLastResponseHotkey,
+                QuitApplicationHotkey).Count > 0)
+            {
+                ClearHistoryHotkey = HotkeyBindingHelper.GetDefaultBinding(GlobalHotkey.ClearHistory);
+                SendClipboardHotkey = HotkeyBindingHelper.GetDefaultBinding(GlobalHotkey.SendClipboard);
+                CopyLastResponseHotkey = HotkeyBindingHelper.GetDefaultBinding(GlobalHotkey.CopyLastResponse);
+                QuitApplicationHotkey = HotkeyBindingHelper.GetDefaultBinding(GlobalHotkey.QuitApplication);
+            }
+
             if (RoundRobinIndex < 0)
                 RoundRobinIndex = 0;
 
@@ -126,6 +163,27 @@ namespace Suterusu.Configuration
                     if (string.IsNullOrWhiteSpace(entry.Model))
                         errors.Add($"Entry {i + 1} ({entry.Name}) has no model specified.");
                 }
+            }
+
+            if (!HotkeyBindingHelper.IsSupportedBindingName(ClearHistoryHotkey))
+                errors.Add("Clear history hotkey must be a valid key combination.");
+
+            if (!HotkeyBindingHelper.IsSupportedBindingName(SendClipboardHotkey))
+                errors.Add("Send clipboard hotkey must be a valid key combination.");
+
+            if (!HotkeyBindingHelper.IsSupportedBindingName(CopyLastResponseHotkey))
+                errors.Add("Copy last response hotkey must be a valid key combination.");
+
+            if (!HotkeyBindingHelper.IsSupportedBindingName(QuitApplicationHotkey))
+                errors.Add("Quit application hotkey must be a valid key combination.");
+
+            foreach (string duplicateError in HotkeyBindingHelper.GetDuplicateBindingErrors(
+                ClearHistoryHotkey,
+                SendClipboardHotkey,
+                CopyLastResponseHotkey,
+                QuitApplicationHotkey))
+            {
+                errors.Add(duplicateError);
             }
 
             return errors;

@@ -50,6 +50,9 @@ namespace Suterusu.Notifications
 
         private void ProcessQueue()
         {
+            bool shouldUninitializeCom;
+            VirtualDesktopHelper.TryInitializeComForCurrentThread(out shouldUninitializeCom);
+
             try
             {
                 foreach (var item in _queue.GetConsumingEnumerable())
@@ -62,20 +65,28 @@ namespace Suterusu.Notifications
             {
                 _logger.Error("CircleDot STA thread exiting with error.", ex);
             }
+            finally
+            {
+                VirtualDesktopHelper.UninitializeComForCurrentThread(shouldUninitializeCom);
+            }
         }
 
-        private static void DoShowDot(Color color, int blinkCount, int blinkDurationMs)
+        private void DoShowDot(Color color, int blinkCount, int blinkDurationMs)
         {
             Rectangle screen = Screen.PrimaryScreen.WorkingArea;
             int x = screen.Right  - DotSize - MarginRight;
             int y = screen.Bottom - DotSize - MarginBottom;
 
-            // Each blink = one transparent→color→transparent cycle.
-            int cycleMs     = blinkDurationMs / blinkCount;
-            int halfCycleMs = cycleMs / 2;
-
             using (var form = new OverlayForm(color, x, y, DotSize))
             {
+                bool movedSuccessfully = false;
+                if (form.Handle != IntPtr.Zero)
+                {
+                    movedSuccessfully = VirtualDesktopHelper.MoveWindowToCurrentDesktop(form.Handle);
+                }
+
+                _logger.Debug($"Window moved to current desktop: {movedSuccessfully}");
+
                 var closeTimer = new Timer { Interval = blinkDurationMs + 50 };
                 closeTimer.Tick += (s, e) =>
                 {
@@ -87,6 +98,8 @@ namespace Suterusu.Notifications
 
                 var sw         = Stopwatch.StartNew();
                 var blinkTimer = new Timer { Interval = BlinkTimerMs };
+                int cycleMs = Math.Max(BlinkTimerMs, blinkDurationMs / Math.Max(1, blinkCount));
+                int halfCycleMs = Math.Max(1, cycleMs / 2);
 
                 blinkTimer.Tick += (s, e) =>
                 {
@@ -97,7 +110,6 @@ namespace Suterusu.Notifications
                         return;
                     }
 
-                    // Position within the current blink cycle (ms)
                     long posInCycle = elapsedMs % cycleMs;
 
                     int alpha;

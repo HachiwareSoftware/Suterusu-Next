@@ -50,6 +50,7 @@ namespace Suterusu.Application
 
             // --- Keyboard hook ---
             _keyboardHook = new KeyboardHook(new NLogLogger("Suterusu.Hook"));
+            _keyboardHook.UpdateBindings(_config);
             _keyboardHook.HotkeyTriggered += HandleHotkey;
 
             try
@@ -92,10 +93,10 @@ namespace Suterusu.Application
             _logger.Info($"  Notification: {notificationMode}");
             _logger.Info("");
             _logger.Info("Controls:");
-            _logger.Info("  F6 - Clear chat history");
-            _logger.Info("  F7 - Read clipboard and send to API");
-            _logger.Info("  F8 - Replace clipboard with API response");
-            _logger.Info("  F12 - Quit application");
+            _logger.Info($"  {_config.ClearHistoryHotkey} - Clear chat history");
+            _logger.Info($"  {_config.SendClipboardHotkey} - Read clipboard and send to API");
+            _logger.Info($"  {_config.CopyLastResponseHotkey} - Replace clipboard with API response");
+            _logger.Info($"  {_config.QuitApplicationHotkey} - Quit application");
             _logger.Info("");
         }
 
@@ -105,20 +106,20 @@ namespace Suterusu.Application
 
             switch (hotkey)
             {
-                case GlobalHotkey.F6:
+                case GlobalHotkey.ClearHistory:
                     _controller.ClearHistory();
                     break;
 
-                case GlobalHotkey.F7:
+                case GlobalHotkey.SendClipboard:
                     _controller.EnqueueClipboardSend();
                     break;
 
-                case GlobalHotkey.F8:
+                case GlobalHotkey.CopyLastResponse:
                     _controller.CopyLastResponseToClipboard();
                     break;
 
-                case GlobalHotkey.F12:
-                    _logger.Info("F12 pressed – exiting.");
+                case GlobalHotkey.QuitApplication:
+                    _logger.Info($"{_config.QuitApplicationHotkey} pressed - exiting.");
                     ExitThread();
                     break;
             }
