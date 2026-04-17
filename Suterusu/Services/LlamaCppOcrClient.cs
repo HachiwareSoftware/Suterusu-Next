@@ -23,7 +23,7 @@ namespace Suterusu.Services
             _model = string.IsNullOrWhiteSpace(model) ? "default" : model;
             _httpClient = handler != null
                 ? new HttpClient(handler)
-                : new HttpClient { Timeout = TimeSpan.FromMilliseconds(0) };
+                : new HttpClient();
         }
 
         public async Task<AiSingleAttemptResult> RunOcrAsync(

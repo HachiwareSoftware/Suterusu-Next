@@ -189,8 +189,8 @@ namespace Suterusu.Services
             _logger.Debug("calling OCR client");
             AiSingleAttemptResult ocrResult = await _ocrClient.RunOcrAsync(
                 imageData,
-                config.OcrPrompt,
-                config.OcrTimeoutMs,
+                config.Ocr?.Prompt,
+                config.Ocr?.TimeoutMs ?? 60000,
                 cancellationToken).ConfigureAwait(false);
 
             if (!ocrResult.Success)

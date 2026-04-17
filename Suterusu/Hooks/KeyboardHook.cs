@@ -54,14 +54,14 @@ namespace Suterusu.Hooks
 
             AddBinding(bindings, config.ClearHistoryHotkey, GlobalHotkey.ClearHistory);
             AddBinding(bindings, config.SendClipboardHotkey, GlobalHotkey.SendClipboard);
-            AddBinding(bindings, config.OcrHotkey, GlobalHotkey.RunOcr);
+            AddBinding(bindings, config.Ocr?.Hotkey, GlobalHotkey.RunOcr);
             AddBinding(bindings, config.CopyLastResponseHotkey, GlobalHotkey.CopyLastResponse);
             AddBinding(bindings, config.QuitApplicationHotkey, GlobalHotkey.QuitApplication);
 
             _bindings = bindings;
             _pressedKeys.Clear();
             _logger.Info(
-                $"Hotkeys updated: {config.ClearHistoryHotkey}=ClearHistory, {config.SendClipboardHotkey}=SendClipboard, {config.OcrHotkey}=RunOcr, {config.CopyLastResponseHotkey}=CopyLastResponse, {config.QuitApplicationHotkey}=QuitApplication");
+                $"Hotkeys updated: {config.ClearHistoryHotkey}=ClearHistory, {config.SendClipboardHotkey}=SendClipboard, {config.Ocr?.Hotkey}=RunOcr, {config.CopyLastResponseHotkey}=CopyLastResponse, {config.QuitApplicationHotkey}=QuitApplication");
         }
 
         public void Install()

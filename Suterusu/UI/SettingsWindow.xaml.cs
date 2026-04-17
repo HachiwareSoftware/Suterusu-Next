@@ -73,21 +73,21 @@ namespace Suterusu.UI
                 config.QuitApplicationHotkey,
                 GlobalHotkey.QuitApplication);
             _hotkeyBindings[GlobalHotkey.RunOcr] = HotkeyBindingHelper.NormalizeBindingName(
-                config.OcrHotkey,
+                config.Ocr?.Hotkey,
                 GlobalHotkey.RunOcr);
 
             // OCR settings
-            if (config.OcrProvider == OcrProvider.HuggingFace)
+            if (config.Ocr?.Provider == OcrProvider.HuggingFace)
                 RbOcrHuggingFace.IsChecked = true;
             else
                 RbOcrLlamaCpp.IsChecked = true;
-            PwdOcrHfToken.Password = config.OcrHfToken ?? string.Empty;
-            TxtOcrHfModel.Text = config.OcrHfModel ?? "zai-org/GLM-OCR";
-            TxtOcrLlamaCppUrl.Text = config.OcrLlamaCppUrl ?? "http://localhost:8080";
-            TxtOcrLlamaCppModel.Text = config.OcrLlamaCppModel ?? "GLM-OCR";
-            TxtOcrPrompt.Text = config.OcrPrompt ?? "Recognize all text from this image.";
-            TxtOcrTimeoutMs.Text = config.OcrTimeoutMs.ToString();
-            UpdateOcrProviderVisibility(config.OcrProvider);
+            PwdOcrHfToken.Password = config.Ocr?.HfToken ?? string.Empty;
+            TxtOcrHfModel.Text = config.Ocr?.HfModel ?? "zai-org/GLM-OCR";
+            TxtOcrLlamaCppUrl.Text = config.Ocr?.LlamaCppUrl ?? "http://localhost:8080";
+            TxtOcrLlamaCppModel.Text = config.Ocr?.LlamaCppModel ?? "GLM-OCR";
+            TxtOcrPrompt.Text = config.Ocr?.Prompt ?? "Recognize all text from this image.";
+            TxtOcrTimeoutMs.Text = config.Ocr?.TimeoutMs.ToString() ?? "60000";
+            UpdateOcrProviderVisibility(config.Ocr?.Provider ?? OcrProvider.HuggingFace);
 
             _capturingHotkey = null;
             UpdateHotkeyButtonLabels();
@@ -122,15 +122,18 @@ namespace Suterusu.UI
                 SendClipboardHotkey      = GetStoredHotkey(GlobalHotkey.SendClipboard),
                 CopyLastResponseHotkey   = GetStoredHotkey(GlobalHotkey.CopyLastResponse),
                 QuitApplicationHotkey    = GetStoredHotkey(GlobalHotkey.QuitApplication),
-                OcrEnabled               = true,
-                OcrHotkey                = GetStoredHotkey(GlobalHotkey.RunOcr),
-                OcrProvider              = GetOcrProvider(),
-                OcrPrompt                = TxtOcrPrompt.Text,
-                OcrTimeoutMs             = int.TryParse(TxtOcrTimeoutMs.Text, out int ocrTimeout) ? ocrTimeout : 60000,
-                OcrHfToken               = PwdOcrHfToken.Password,
-                OcrHfModel               = TxtOcrHfModel.Text,
-                OcrLlamaCppUrl           = TxtOcrLlamaCppUrl.Text,
-                OcrLlamaCppModel         = TxtOcrLlamaCppModel.Text
+                Ocr                     = new OcrSettings
+                {
+                    Enabled        = true,
+                    Hotkey         = GetStoredHotkey(GlobalHotkey.RunOcr),
+                    Provider       = GetOcrProvider(),
+                    Prompt         = TxtOcrPrompt.Text,
+                    TimeoutMs      = int.TryParse(TxtOcrTimeoutMs.Text, out int ocrTimeout) ? ocrTimeout : 60000,
+                    HfToken        = PwdOcrHfToken.Password,
+                    HfModel        = TxtOcrHfModel.Text,
+                    LlamaCppUrl    = TxtOcrLlamaCppUrl.Text,
+                    LlamaCppModel  = TxtOcrLlamaCppModel.Text
+                }
             };
         }
 

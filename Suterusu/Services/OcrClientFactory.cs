@@ -6,22 +6,22 @@ namespace Suterusu.Services
     {
         public static IOcrClient Create(ILogger logger, AppConfig config)
         {
-            if (!config.OcrEnabled)
+            if (config.Ocr == null || !config.Ocr.Enabled)
                 return null;
 
-            if (config.OcrProvider == OcrProvider.HuggingFace)
+            if (config.Ocr.Provider == OcrProvider.HuggingFace)
             {
                 return new HuggingFaceOcrClient(
                     logger,
-                    config.OcrHfToken,
-                    config.OcrHfModel);
+                    config.Ocr.HfToken,
+                    config.Ocr.HfModel);
             }
-            else if (config.OcrProvider == OcrProvider.LlamaCpp)
+            else if (config.Ocr.Provider == OcrProvider.LlamaCpp)
             {
                 return new LlamaCppOcrClient(
                     logger,
-                    config.OcrLlamaCppUrl,
-                    config.OcrLlamaCppModel);
+                    config.Ocr.LlamaCppUrl,
+                    config.Ocr.LlamaCppModel);
             }
             return null;
         }

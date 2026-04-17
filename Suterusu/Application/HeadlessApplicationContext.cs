@@ -105,12 +105,12 @@ namespace Suterusu.Application
             _logger.Info("Controls:");
             _logger.Info($"  {_config.ClearHistoryHotkey} - Clear chat history");
             _logger.Info($"  {_config.SendClipboardHotkey} - Read clipboard and send to API");
-            _logger.Info($"  {_config.OcrHotkey} - Select screen region for OCR");
+            _logger.Info($"  {_config.Ocr?.Hotkey} - Select screen region for OCR");
             _logger.Info($"  {_config.CopyLastResponseHotkey} - Replace clipboard with API response");
             _logger.Info($"  {_config.QuitApplicationHotkey} - Quit application");
             _logger.Info("");
 
-            _logger.Info($"OCR: {_config.OcrProvider} (model={_config.OcrHfModel})");
+            _logger.Info($"OCR: {_config.Ocr?.Provider} (model={_config.Ocr?.HfModel})");
             _logger.Info("");
         }
 

@@ -67,7 +67,7 @@ namespace Suterusu.Hooks
             using (ProcessModule module = proc.MainModule)
             {
                 IntPtr hMod = NativeMethods.GetModuleHandle(module.ModuleName);
-                _hookHandle = NativeMethods.SetWindowsHookExMouse(
+                _hookHandle = NativeMethods.SetWindowsHookEx(
                     NativeMethods.WH_MOUSE_LL, _proc, hMod, 0);
             }
 
@@ -97,7 +97,7 @@ namespace Suterusu.Hooks
                 int msg = wParam.ToInt32();
                 bool isLeftButtonDown = (msg == NativeMethods.WM_LBUTTONDOWN);
 
-                if (isLeftButtonDown)
+                if (isLeftButtonDown && _state != SelectionState.Idle)
                 {
                     var mouseInfo = (NativeMethods.MSLLHOOKSTRUCT)
                         Marshal.PtrToStructure(lParam, typeof(NativeMethods.MSLLHOOKSTRUCT));
@@ -109,6 +109,7 @@ namespace Suterusu.Hooks
                         _firstPoint = point;
                         _state = SelectionState.WaitingSecondClick;
                         _logger.Info($"First corner: {point.X},{point.Y}. Click second corner.");
+                        return (IntPtr)1;
                     }
                     else if (_state == SelectionState.WaitingSecondClick)
                     {
@@ -121,9 +122,8 @@ namespace Suterusu.Hooks
                         _logger.Info($"Selection complete: {rect}");
                         _state = SelectionState.Idle;
                         SelectionComplete?.Invoke(this, rect);
+                        return (IntPtr)1;
                     }
-
-                    return (IntPtr)1;
                 }
             }
 

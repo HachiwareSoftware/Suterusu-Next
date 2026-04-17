@@ -281,7 +281,7 @@
 
                                 <TextBlock Style="{StaticResource LabelStyle}" Text="Provider" />
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                                    <RadioButton x:Name="RbOcrHuggingFace" Content="HuggingFace" Checked="OnOcrProviderChanged" />
+                                    <RadioButton x:Name="RbOcrHuggingFace" Content="Z.ai" Checked="OnOcrProviderChanged" />
                                     <RadioButton x:Name="RbOcrLlamaCpp"   Content="llama.cpp"   Checked="OnOcrProviderChanged" />
                                 </StackPanel>
 
