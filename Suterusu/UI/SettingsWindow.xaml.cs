@@ -99,6 +99,7 @@ namespace Suterusu.UI
             PwdOcrHfToken.Password = config.Ocr?.HfToken ?? string.Empty;
             TxtOcrHfModel.Text = config.Ocr?.HfModel ?? "google/ocr";
             TxtOcrPrompt.Text = config.Ocr?.Prompt ?? "Recognize all text from this image.";
+            ChkOcrUseClipboardPrompt.IsChecked = config.Ocr?.UseClipboardPrompt ?? false;
             TxtOcrTimeoutMs.Text = config.Ocr?.TimeoutMs.ToString() ?? "60000";
             UpdateOcrProviderVisibility(ocrProvider);
 
@@ -151,7 +152,8 @@ namespace Suterusu.UI
                     CustomModel    = TxtOcrCustomModel.Text,
                     HfUrl          = TxtOcrHfUrl.Text,
                     HfToken        = PwdOcrHfToken.Password,
-                    HfModel        = TxtOcrHfModel.Text
+                    HfModel        = TxtOcrHfModel.Text,
+                    UseClipboardPrompt = ChkOcrUseClipboardPrompt.IsChecked ?? false
                 }
             };
         }

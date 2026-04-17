@@ -342,6 +342,8 @@
                                 <TextBlock Style="{StaticResource LabelStyle}" Text="Prompt" />
                                 <TextBox x:Name="TxtOcrPrompt" />
 
+                                <CheckBox x:Name="ChkOcrUseClipboardPrompt" Content="Use clipboard text as prompt if not empty" Margin="0,6,0,0" />
+
                                 <TextBlock Style="{StaticResource LabelStyle}" Text="Timeout (ms)" />
                                 <TextBox x:Name="TxtOcrTimeoutMs" Width="100" HorizontalAlignment="Left" />
                             </StackPanel>

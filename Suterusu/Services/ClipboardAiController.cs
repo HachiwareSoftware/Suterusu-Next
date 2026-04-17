@@ -186,10 +186,22 @@ namespace Suterusu.Services
             _logger.Info($"Screen captured ({imageData.Length} bytes).");
 
             AppConfig config = _configManager.Current;
+            string prompt = config.Ocr?.Prompt;
+
+            if (config.Ocr?.UseClipboardPrompt == true)
+            {
+                var clipboardResult = _clipboardService.TryReadText();
+                if (clipboardResult.Success && !string.IsNullOrWhiteSpace(clipboardResult.Text))
+                {
+                    prompt = clipboardResult.Text;
+                    _logger.Debug("Using clipboard text as OCR prompt");
+                }
+            }
+
             _logger.Debug("calling OCR client");
             AiSingleAttemptResult ocrResult = await _ocrClient.RunOcrAsync(
                 imageData,
-                config.Ocr?.Prompt,
+                prompt,
                 config.Ocr?.TimeoutMs ?? 60000,
                 cancellationToken).ConfigureAwait(false);
 

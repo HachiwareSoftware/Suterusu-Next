@@ -30,6 +30,9 @@ namespace Suterusu.Configuration
         public string HfModel { get; set; }
         public string HfUrl { get; set; }
 
+        // Clipboard prompt option
+        public bool UseClipboardPrompt { get; set; }
+
         public static OcrSettings CreateDefault() => new OcrSettings
         {
             Enabled = false,
@@ -46,7 +49,8 @@ namespace Suterusu.Configuration
             CustomModel = "",
             HfToken = "",
             HfModel = "google/ocr",
-            HfUrl = "https://api.huggingface.co/v1"
+            HfUrl = "https://api.huggingface.co/v1",
+            UseClipboardPrompt = false
         };
     }
 

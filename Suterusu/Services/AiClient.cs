@@ -148,19 +148,25 @@ namespace Suterusu.Services
             {
                 var raceToken = raceCts.Token;
 
-                var tasks = new List<Task<AiEndpointAttemptResult>>();
+                var allModelTasks = new List<Task<AiSingleAttemptResult>>();
+                var modelNames = new List<string>();
+
                 foreach (var endpoint in GetEndpoints(config))
                 {
-                    tasks.Add(SendToEndpointAsync(endpoint, config, messages, raceToken));
+                    foreach (var model in endpoint.Models)
+                    {
+                        allModelTasks.Add(SendToModelAsync(model, endpoint, config, messages, raceToken));
+                        modelNames.Add(model);
+                    }
                 }
 
-                var remaining = new List<Task<AiEndpointAttemptResult>>(tasks);
+                var remaining = new List<Task<AiSingleAttemptResult>>(allModelTasks);
                 while (remaining.Count > 0)
                 {
-                    Task<AiEndpointAttemptResult> completedTask = await Task.WhenAny(remaining).ConfigureAwait(false);
+                    Task<AiSingleAttemptResult> completedTask = await Task.WhenAny(remaining).ConfigureAwait(false);
                     remaining.Remove(completedTask);
 
-                    AiEndpointAttemptResult result;
+                    AiSingleAttemptResult result;
                     try
                     {
                         result = await completedTask.ConfigureAwait(false);
@@ -179,15 +185,19 @@ namespace Suterusu.Services
                     if (result.Success)
                     {
                         raceCts.Cancel();
-                        _logger.Info($"Fastest mode success with endpoint: {result.ModelUsed}");
-                        return AiResponseResult.Ok(result.Content, result.ModelUsed);
+                        var idx = allModelTasks.IndexOf(completedTask);
+                        var modelName = idx >= 0 && idx < modelNames.Count ? modelNames[idx] : "unknown";
+                        _logger.Info($"Fastest mode success with model: {modelName}");
+                        return AiResponseResult.Ok(result.Content, modelName);
                     }
 
-                    _logger.Warn($"Fastest mode: endpoint failed ({result.Error}), waiting for next.");
+                    var failedIdx = allModelTasks.IndexOf(completedTask);
+                    var failedModel = failedIdx >= 0 && failedIdx < modelNames.Count ? modelNames[failedIdx] : "unknown";
+                    _logger.Warn($"Fastest mode: model {failedModel} failed ({result.Error}), waiting for next.");
                 }
 
-                _logger.Error("Fastest mode: all endpoints failed.");
-                return AiResponseResult.Fail("Fastest mode: all endpoints failed.");
+                _logger.Error("Fastest mode: all models failed.");
+                return AiResponseResult.Fail("Fastest mode: all models failed.");
             }
         }
 
