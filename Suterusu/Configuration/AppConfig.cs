@@ -47,6 +47,24 @@ namespace Suterusu.Configuration
 
         public string QuitApplicationHotkey { get; set; }
 
+        public bool OcrEnabled { get; set; }
+
+        public string OcrHotkey { get; set; }
+
+        public OcrProvider OcrProvider { get; set; }
+
+        public string OcrPrompt { get; set; }
+
+        public int OcrTimeoutMs { get; set; }
+
+        public string OcrHfToken { get; set; }
+
+        public string OcrHfModel { get; set; }
+
+        public string OcrLlamaCppUrl { get; set; }
+
+        public string OcrLlamaCppModel { get; set; }
+
         public static AppConfig CreateDefault()
         {
             return new AppConfig
@@ -65,7 +83,16 @@ namespace Suterusu.Configuration
                 ClearHistoryHotkey       = HotkeyBindingHelper.GetDefaultBinding(GlobalHotkey.ClearHistory),
                 SendClipboardHotkey      = HotkeyBindingHelper.GetDefaultBinding(GlobalHotkey.SendClipboard),
                 CopyLastResponseHotkey   = HotkeyBindingHelper.GetDefaultBinding(GlobalHotkey.CopyLastResponse),
-                QuitApplicationHotkey    = HotkeyBindingHelper.GetDefaultBinding(GlobalHotkey.QuitApplication)
+                QuitApplicationHotkey    = HotkeyBindingHelper.GetDefaultBinding(GlobalHotkey.QuitApplication),
+                OcrEnabled               = false,
+                OcrHotkey                = "Shift+F7",
+                OcrProvider              = OcrProvider.HuggingFace,
+                OcrPrompt                = "Recognize all text from this image.",
+                OcrTimeoutMs             = 60000,
+                OcrHfToken               = string.Empty,
+                OcrHfModel               = "zai-org/GLM-OCR",
+                OcrLlamaCppUrl           = "http://localhost:8080",
+                OcrLlamaCppModel         = "GLM-OCR"
             };
         }
 
@@ -120,16 +147,37 @@ namespace Suterusu.Configuration
                 QuitApplicationHotkey,
                 GlobalHotkey.QuitApplication);
 
+            OcrHotkey = HotkeyBindingHelper.NormalizeBindingName(
+                OcrHotkey,
+                GlobalHotkey.RunOcr);
+
+            if (OcrTimeoutMs <= 0)
+                OcrTimeoutMs = 60000;
+
+            if (OcrTimeoutMs > 120000)
+                OcrTimeoutMs = 120000;
+
+            if (string.IsNullOrWhiteSpace(OcrHfModel))
+                OcrHfModel = "zai-org/GLM-OCR";
+
+            if (string.IsNullOrWhiteSpace(OcrLlamaCppModel))
+                OcrLlamaCppModel = "GLM-OCR";
+
+            if (string.IsNullOrWhiteSpace(OcrLlamaCppUrl))
+                OcrLlamaCppUrl = "http://localhost:8080";
+
             if (HotkeyBindingHelper.GetDuplicateBindingErrors(
                 ClearHistoryHotkey,
                 SendClipboardHotkey,
                 CopyLastResponseHotkey,
-                QuitApplicationHotkey).Count > 0)
+                QuitApplicationHotkey,
+                OcrHotkey).Count > 0)
             {
                 ClearHistoryHotkey = HotkeyBindingHelper.GetDefaultBinding(GlobalHotkey.ClearHistory);
                 SendClipboardHotkey = HotkeyBindingHelper.GetDefaultBinding(GlobalHotkey.SendClipboard);
                 CopyLastResponseHotkey = HotkeyBindingHelper.GetDefaultBinding(GlobalHotkey.CopyLastResponse);
                 QuitApplicationHotkey = HotkeyBindingHelper.GetDefaultBinding(GlobalHotkey.QuitApplication);
+                OcrHotkey = HotkeyBindingHelper.GetDefaultBinding(GlobalHotkey.RunOcr);
             }
 
             if (RoundRobinIndex < 0)
@@ -177,11 +225,29 @@ namespace Suterusu.Configuration
             if (!HotkeyBindingHelper.IsSupportedBindingName(QuitApplicationHotkey))
                 errors.Add("Quit application hotkey must be a valid key combination.");
 
+            if (!HotkeyBindingHelper.IsSupportedBindingName(OcrHotkey))
+                errors.Add("OCR hotkey must be a valid key combination.");
+
+            if (OcrEnabled)
+            {
+                if (OcrProvider == OcrProvider.HuggingFace)
+                {
+                    if (string.IsNullOrWhiteSpace(OcrHfToken))
+                        errors.Add("HuggingFace token required when OCR is enabled.");
+                }
+                else if (OcrProvider == OcrProvider.LlamaCpp)
+                {
+                    if (string.IsNullOrWhiteSpace(OcrLlamaCppUrl))
+                        errors.Add("llama.cpp URL required when OCR is enabled.");
+                }
+            }
+
             foreach (string duplicateError in HotkeyBindingHelper.GetDuplicateBindingErrors(
                 ClearHistoryHotkey,
                 SendClipboardHotkey,
                 CopyLastResponseHotkey,
-                QuitApplicationHotkey))
+                QuitApplicationHotkey,
+                OcrHotkey))
             {
                 errors.Add(duplicateError);
             }

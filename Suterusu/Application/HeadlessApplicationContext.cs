@@ -9,10 +9,6 @@ using Suterusu.Services;
 
 namespace Suterusu.Application
 {
-    /// <summary>
-    /// Hidden WinForms application context that owns all runtime services,
-    /// the keyboard hook, and the application lifetime.
-    /// </summary>
     public class HeadlessApplicationContext : ApplicationContext
     {
         private readonly ILogger                _logger = new NLogLogger("Suterusu.App");
@@ -23,18 +19,17 @@ namespace Suterusu.Application
         private readonly INotificationService   _notificationService;
         private readonly ClipboardAiController  _controller;
         private readonly KeyboardHook           _keyboardHook;
+        private readonly MouseHook               _mouseHook;
         private          AppConfig              _config;
 
         public HeadlessApplicationContext(StartupOptions options)
         {
             _logger.Debug("Initializing application...");
 
-            // --- Build config ---
             _configManager = new ConfigManager(new NLogLogger("Suterusu.Config"));
             _config = _configManager.LoadOrCreateDefault();
             _logger.Debug($"Config loaded: {_config.ModelPriority?.Count ?? 0} model priority entries");
 
-            // --- Build services ---
             _clipboardService    = new ClipboardService(new NLogLogger("Suterusu.Clipboard"));
             _aiClient            = new AiClient(new NLogLogger("Suterusu.AI"));
             _notificationService = NotificationServiceFactory.Create(_config);
@@ -48,7 +43,10 @@ namespace Suterusu.Application
                 new NLogLogger("Suterusu.Controller"),
                 _notificationService);
 
-            // --- Keyboard hook ---
+            var ocrLogger = new NLogLogger("Suterusu.OCR");
+            IOcrClient ocrClient = OcrClientFactory.Create(ocrLogger, _config);
+            _controller.RefreshOcrClient(ocrClient);
+
             _keyboardHook = new KeyboardHook(new NLogLogger("Suterusu.Hook"));
             _keyboardHook.UpdateBindings(_config);
             _keyboardHook.HotkeyTriggered += HandleHotkey;
@@ -62,6 +60,18 @@ namespace Suterusu.Application
                 _logger.Error("Fatal: keyboard hook installation failed.", ex);
                 System.Windows.Forms.Application.Exit();
                 return;
+            }
+
+            _mouseHook = new MouseHook(new NLogLogger("Suterusu.Mouse"));
+            _controller.SetMouseHook(_mouseHook);
+
+            try
+            {
+                _mouseHook.Install();
+            }
+            catch (Exception ex)
+            {
+                _logger.Error("Fatal: mouse hook installation failed.", ex);
             }
 
             PrintStartupBanner(options.DebugEnabled);
@@ -95,8 +105,12 @@ namespace Suterusu.Application
             _logger.Info("Controls:");
             _logger.Info($"  {_config.ClearHistoryHotkey} - Clear chat history");
             _logger.Info($"  {_config.SendClipboardHotkey} - Read clipboard and send to API");
+            _logger.Info($"  {_config.OcrHotkey} - Select screen region for OCR");
             _logger.Info($"  {_config.CopyLastResponseHotkey} - Replace clipboard with API response");
             _logger.Info($"  {_config.QuitApplicationHotkey} - Quit application");
+            _logger.Info("");
+
+            _logger.Info($"OCR: {_config.OcrProvider} (model={_config.OcrHfModel})");
             _logger.Info("");
         }
 
@@ -114,6 +128,17 @@ namespace Suterusu.Application
                     _controller.EnqueueClipboardSend();
                     break;
 
+                case GlobalHotkey.RunOcr:
+                    if (_mouseHook != null && _mouseHook.State != Hooks.SelectionState.Idle)
+                    {
+                        _controller.CancelOcrSelection();
+                    }
+                    else
+                    {
+                        _controller.StartOcrSelection();
+                    }
+                    break;
+
                 case GlobalHotkey.CopyLastResponse:
                     _controller.CopyLastResponseToClipboard();
                     break;
@@ -129,6 +154,7 @@ namespace Suterusu.Application
         {
             if (disposing)
             {
+                _mouseHook?.Dispose();
                 _keyboardHook?.Dispose();
                 _controller?.Dispose();
                 _aiClient?.Dispose();

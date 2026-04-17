@@ -3,9 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Suterusu"
         Width="460"
-        Height="780"
+        Height="700"
         MinWidth="420"
-        MinHeight="620"
+        MinHeight="550"
         WindowStartupLocation="CenterScreen"
         ResizeMode="CanResize"
         PreviewKeyDown="OnWindowPreviewKeyDown"
@@ -125,6 +125,11 @@
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
 
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="Margin"     Value="0,0,0,4" />
+        </Style>
+
         <Style x:Key="SecondaryButtonStyle" TargetType="Button">
             <Setter Property="Background"      Value="#2D2D30" />
             <Setter Property="Foreground"      Value="{StaticResource TextBrush}" />
@@ -153,6 +158,17 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+
+        <Style TargetType="TabItem">
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Padding"    Value="12,8" />
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
     <Grid Background="{StaticResource WindowBrush}">
@@ -161,193 +177,209 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <ScrollViewer Grid.Row="0"
-                      VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled"
-                      CanContentScroll="False"
-                      Padding="12">
-            <StackPanel>
-                <TextBlock FontSize="18" FontWeight="SemiBold" Text="Settings" Margin="0,0,0,4" />
-                <TextBlock Style="{StaticResource HintStyle}" Margin="0,0,0,12"
-                           Text="Configure model priority, behavior, and notifications." />
-
-                <!-- Model Priority -->
-                <Border Style="{StaticResource SectionBorderStyle}">
+        <TabControl Grid.Row="0"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Padding="0"
+                    Margin="12,12,12,0">
+            <!-- Chat Tab -->
+            <TabItem Header="Chat">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,8,0,0">
                     <StackPanel>
-                        <TextBlock Style="{StaticResource SectionTitleStyle}" Text="Model Priority" />
-                        <TextBlock Style="{StaticResource HintStyle}" Margin="0,0,0,6"
-                                   Text="Models are tried top-to-bottom (Sequential), rotated (Round Robin), or raced (Fastest). Each entry has its own endpoint and API key." />
-
-                        <!-- Priority list -->
-                        <ListBox x:Name="LstPriority" Height="120">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0"
-                                                   Text="{Binding Model}"
-                                                   FontWeight="SemiBold" />
-                                        <TextBlock Grid.Column="1"
-                                                   Text="{Binding Name}"
-                                                   Foreground="{StaticResource MutedTextBrush}"
-                                                   Margin="12,0,0,0" />
-                                    </Grid>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-
-                        <!-- List action buttons -->
-                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                            <Button Style="{StaticResource SecondaryButtonStyle}" Content="Add"    Click="OnAddEntry" />
-                            <Button Style="{StaticResource SecondaryButtonStyle}" Content="Edit"   Click="OnEditEntry"      Margin="6,0,0,0" />
-                            <Button Style="{StaticResource SecondaryButtonStyle}" Content="Remove" Click="OnRemoveEntry"    Margin="6,0,0,0" />
-                            <Button Style="{StaticResource SecondaryButtonStyle}" Content="↑"      Click="OnMoveEntryUp"    Margin="6,0,0,0" Width="28" MinWidth="0" Padding="4,5" />
-                            <Button Style="{StaticResource SecondaryButtonStyle}" Content="↓"      Click="OnMoveEntryDown"  Margin="4,0,0,0" Width="28" MinWidth="0" Padding="4,5" />
-                        </StackPanel>
-
-                        <!-- Inline add / edit form -->
-                        <Border x:Name="PnlEntryEdit"
-                                Visibility="Collapsed"
-                                Background="{StaticResource EditPanelBrush}"
-                                BorderBrush="{StaticResource AccentBrush}"
-                                BorderThickness="1"
-                                CornerRadius="2"
-                                Padding="10"
-                                Margin="0,8,0,0">
+                        <Border Style="{StaticResource SectionBorderStyle}">
                             <StackPanel>
-                                <TextBlock x:Name="LblEntryEditTitle"
-                                           Style="{StaticResource SectionTitleStyle}"
-                                           FontSize="12"
-                                           Text="Add Entry" />
-
-                                <TextBlock Style="{StaticResource LabelStyle}" Text="Display Name" />
-                                <TextBox x:Name="TxtEntryName" />
-
-                                <TextBlock Style="{StaticResource LabelStyle}" Text="Preset" />
-                                <ComboBox x:Name="CboEntryPreset"
-                                          DisplayMemberPath="Name"
-                                          SelectionChanged="OnEntryPresetChanged" />
-
-                                <TextBlock Style="{StaticResource LabelStyle}" Text="Base URL" />
-                                <TextBox x:Name="TxtEntryBaseUrl" TextChanged="OnEntryBaseUrlChanged" />
-
-                                <TextBlock Style="{StaticResource LabelStyle}" Text="API Key (leave blank if not needed)" />
-                                <PasswordBox x:Name="PwdEntryApiKey" />
-
-                                <TextBlock Style="{StaticResource LabelStyle}" Text="Model" />
-                                <TextBox x:Name="TxtEntryModel" />
-
-                                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                    <Button Style="{StaticResource PrimaryButtonStyle}"   Content="Confirm" Click="OnConfirmEntry" />
-                                    <Button Style="{StaticResource SecondaryButtonStyle}" Content="Discard" Click="OnDiscardEntry" Margin="6,0,0,0" />
+                                <TextBlock Style="{StaticResource SectionTitleStyle}" Text="Model Priority" />
+                                <ListBox x:Name="LstPriority" Height="100">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" Text="{Binding Model}" FontWeight="SemiBold" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Name}" Foreground="{StaticResource MutedTextBrush}" Margin="12,0,0,0" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                    <Button Style="{StaticResource SecondaryButtonStyle}" Content="Add"    Click="OnAddEntry" />
+                                    <Button Style="{StaticResource SecondaryButtonStyle}" Content="Edit"   Click="OnEditEntry"      Margin="6,0,0,0" />
+                                    <Button Style="{StaticResource SecondaryButtonStyle}" Content="Remove" Click="OnRemoveEntry"    Margin="6,0,0,0" />
+                                    <Button Style="{StaticResource SecondaryButtonStyle}" Content="↑"      Click="OnMoveEntryUp"    Margin="6,0,0,0" Width="28" MinWidth="0" Padding="4,5" />
+                                    <Button Style="{StaticResource SecondaryButtonStyle}" Content="↓"      Click="OnMoveEntryDown"  Margin="4,0,0,0" Width="28" MinWidth="0" Padding="4,5" />
                                 </StackPanel>
+                                <Border x:Name="PnlEntryEdit" Visibility="Collapsed" Background="{StaticResource EditPanelBrush}" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1" CornerRadius="2" Padding="10" Margin="0,8,0,0">
+                                    <StackPanel>
+                                        <TextBlock x:Name="LblEntryEditTitle" Style="{StaticResource SectionTitleStyle}" FontSize="12" Text="Add Entry" />
+                                        <TextBlock Style="{StaticResource LabelStyle}" Text="Display Name" />
+                                        <TextBox x:Name="TxtEntryName" />
+                                        <TextBlock Style="{StaticResource LabelStyle}" Text="Preset" />
+                                        <ComboBox x:Name="CboEntryPreset" DisplayMemberPath="Name" SelectionChanged="OnEntryPresetChanged" />
+                                        <TextBlock Style="{StaticResource LabelStyle}" Text="Base URL" />
+                                        <TextBox x:Name="TxtEntryBaseUrl" TextChanged="OnEntryBaseUrlChanged" />
+                                        <TextBlock Style="{StaticResource LabelStyle}" Text="API Key" />
+                                        <PasswordBox x:Name="PwdEntryApiKey" />
+                                        <TextBlock Style="{StaticResource LabelStyle}" Text="Model" />
+                                        <TextBox x:Name="TxtEntryModel" />
+                                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                            <Button Style="{StaticResource PrimaryButtonStyle}"   Content="Confirm" Click="OnConfirmEntry" />
+                                            <Button Style="{StaticResource SecondaryButtonStyle}" Content="Discard" Click="OnDiscardEntry" Margin="6,0,0,0" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource SectionBorderStyle}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource SectionTitleStyle}" Text="Chat Hotkeys" />
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="180" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource LabelStyle}" Margin="0,0,12,4" Text="Clear chat history" VerticalAlignment="Center" />
+                                    <Button Grid.Row="0" Grid.Column="1" x:Name="BtnClearHistoryHotkey" Style="{StaticResource SecondaryButtonStyle}" Click="OnHotkeyButtonClick" />
+
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource LabelStyle}" Margin="0,2,12,4" Text="Read clipboard and send" VerticalAlignment="Center" />
+                                    <Button Grid.Row="1" Grid.Column="1" x:Name="BtnSendClipboardHotkey" Style="{StaticResource SecondaryButtonStyle}" Click="OnHotkeyButtonClick" />
+
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource LabelStyle}" Margin="0,2,12,0" Text="Copy last AI response" VerticalAlignment="Center" />
+                                    <Button Grid.Row="2" Grid.Column="1" x:Name="BtnCopyLastResponseHotkey" Style="{StaticResource SecondaryButtonStyle}" Click="OnHotkeyButtonClick" />
+                                </Grid>
+
+                                <TextBlock Style="{StaticResource LabelStyle}" Text="History limit (turns)" />
+                                <TextBox x:Name="TxtHistoryLimit" Width="100" HorizontalAlignment="Left" />
+
+                                <TextBlock Style="{StaticResource LabelStyle}" Text="System Prompt" />
+                                <TextBox x:Name="TxtSystemPrompt" Height="80" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Visible" />
                             </StackPanel>
                         </Border>
                     </StackPanel>
-                </Border>
+                </ScrollViewer>
+            </TabItem>
 
-                <!-- Behavior -->
-                <Border Style="{StaticResource SectionBorderStyle}">
+            <!-- OCR Tab -->
+            <TabItem Header="OCR">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,8,0,0">
                     <StackPanel>
-                        <TextBlock Style="{StaticResource SectionTitleStyle}" Text="Behavior" />
+                        <Border Style="{StaticResource SectionBorderStyle}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource SectionTitleStyle}" Text="OCR Settings" />
 
-                        <TextBlock Style="{StaticResource LabelStyle}" Text="History limit (turns)" />
-                        <TextBox x:Name="TxtHistoryLimit" Width="100" HorizontalAlignment="Left" />
+                                <TextBlock Style="{StaticResource HintStyle}" Text="Press hotkey, click two points to select screen region. Press hotkey again to cancel." Margin="0,0,0,8" />
 
-                        <TextBlock Style="{StaticResource LabelStyle}" Text="Hotkeys" />
-                        <Grid Margin="0,0,0,8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="180" />
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
+                                <TextBlock Style="{StaticResource LabelStyle}" Text="OCR Hotkey" />
+                                <Button x:Name="BtnOcrHotkey" Style="{StaticResource SecondaryButtonStyle}" Click="OnHotkeyButtonClick" HorizontalAlignment="Left" />
 
-                            <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource LabelStyle}" Margin="0,0,12,4" Text="Clear chat history" VerticalAlignment="Center" />
-                            <Button Grid.Row="0" Grid.Column="1" x:Name="BtnClearHistoryHotkey" Style="{StaticResource SecondaryButtonStyle}" Click="OnHotkeyButtonClick" />
+                                <TextBlock Style="{StaticResource LabelStyle}" Text="Provider" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                    <RadioButton x:Name="RbOcrHuggingFace" Content="HuggingFace" Checked="OnOcrProviderChanged" />
+                                    <RadioButton x:Name="RbOcrLlamaCpp"   Content="llama.cpp"   Checked="OnOcrProviderChanged" />
+                                </StackPanel>
 
-                            <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource LabelStyle}" Margin="0,2,12,4" Text="Read clipboard and send" VerticalAlignment="Center" />
-                            <Button Grid.Row="1" Grid.Column="1" x:Name="BtnSendClipboardHotkey" Style="{StaticResource SecondaryButtonStyle}" Click="OnHotkeyButtonClick" />
+                                <!-- HuggingFace settings -->
+                                <StackPanel x:Name="PnlHfSettings">
+                                    <TextBlock Style="{StaticResource LabelStyle}" Text="API Token" />
+                                    <PasswordBox x:Name="PwdOcrHfToken" />
 
-                            <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource LabelStyle}" Margin="0,2,12,4" Text="Copy last AI response" VerticalAlignment="Center" />
-                            <Button Grid.Row="2" Grid.Column="1" x:Name="BtnCopyLastResponseHotkey" Style="{StaticResource SecondaryButtonStyle}" Click="OnHotkeyButtonClick" />
+                                    <TextBlock Style="{StaticResource LabelStyle}" Text="Model" />
+                                    <TextBox x:Name="TxtOcrHfModel" />
+                                    <TextBlock Style="{StaticResource HintStyle}" Text="Default: zai-org/GLM-OCR" />
+                                </StackPanel>
 
-                            <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource LabelStyle}" Margin="0,2,12,0" Text="Quit application" VerticalAlignment="Center" />
-                            <Button Grid.Row="3" Grid.Column="1" x:Name="BtnQuitApplicationHotkey" Style="{StaticResource SecondaryButtonStyle}" Click="OnHotkeyButtonClick" />
-                        </Grid>
-                        <TextBlock x:Name="TxtHotkeyCaptureHint" Style="{StaticResource HintStyle}" Margin="0,0,0,6"
-                                   Text="Click a binding, then press the key combination you want. It is saved immediately. Press ESC to cancel. Each action must use a different combination." />
+                                <!-- llama.cpp settings -->
+                                <StackPanel x:Name="PnlLlamaCppSettings" Visibility="Collapsed">
+                                    <TextBlock Style="{StaticResource LabelStyle}" Text="Server URL" />
+                                    <TextBox x:Name="TxtOcrLlamaCppUrl" />
+                                    <TextBlock Style="{StaticResource HintStyle}" Text="Default: http://localhost:8080" />
 
-                        <TextBlock Style="{StaticResource LabelStyle}" Text="Notification mode" />
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                            <RadioButton x:Name="RbFlashWindow" Content="Flash Window"
-                                         Checked="OnNotificationModeChanged" />
-                            <RadioButton x:Name="RbCircleDot"   Content="Circle Dot"
-                                         Checked="OnNotificationModeChanged" />
-                            <RadioButton x:Name="RbNothing"     Content="Nothing"
-                                         Checked="OnNotificationModeChanged" />
-                        </StackPanel>
+                                    <TextBlock Style="{StaticResource LabelStyle}" Text="Model" />
+                                    <TextBox x:Name="TxtOcrLlamaCppModel" />
+                                    <TextBlock Style="{StaticResource HintStyle}" Text="Model name or alias. Requires multimodal vision model." />
+                                </StackPanel>
 
-                        <TextBlock Style="{StaticResource LabelStyle}" Text="Multi-request mode" />
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                            <RadioButton x:Name="RbSequential" Content="Sequential (fallback)"
-                                         Checked="OnMultiRequestModeChanged" />
-                            <RadioButton x:Name="RbRoundRobin" Content="Round Robin"
-                                         Checked="OnMultiRequestModeChanged" />
-                            <RadioButton x:Name="RbFastest"    Content="Fastest (race)"
-                                         Checked="OnMultiRequestModeChanged" />
-                        </StackPanel>
+                                <TextBlock Style="{StaticResource LabelStyle}" Text="Prompt" />
+                                <TextBox x:Name="TxtOcrPrompt" />
 
-                        <TextBlock Style="{StaticResource LabelStyle}" Text="Multi-request timeout (ms)" />
-                        <TextBox x:Name="TxtMultiRequestTimeoutMs" Width="100" HorizontalAlignment="Left" />
-
-                        <!-- Flash Window settings -->
-                        <StackPanel x:Name="PnlFlashWindowSettings" Margin="0,0,0,6">
-                            <TextBlock Style="{StaticResource LabelStyle}" Text="Flash window target" />
-                            <TextBox x:Name="TxtFlashWindowTarget" />
-                            <TextBlock Style="{StaticResource HintStyle}"
-                                       Text="Process name to flash (e.g. Chrome). Use 'All' for all windows or 'None' to disable." />
-                        </StackPanel>
-
-                        <!-- Circle Dot settings -->
-                        <StackPanel x:Name="PnlCircleDotSettings" Margin="0,0,0,6" Visibility="Collapsed">
-                            <TextBlock Style="{StaticResource LabelStyle}" Text="Blink count" />
-                            <TextBox x:Name="TxtCircleDotBlinkCount" Width="100" HorizontalAlignment="Left" />
-                            <TextBlock Style="{StaticResource HintStyle}"
-                                       Text="How many times the dot blinks (1–10)." />
-
-                            <TextBlock Style="{StaticResource LabelStyle}" Text="Blink duration (ms)" />
-                            <TextBox x:Name="TxtCircleDotBlinkDurationMs" Width="100" HorizontalAlignment="Left" />
-                            <TextBlock Style="{StaticResource HintStyle}"
-                                       Text="Total duration of all blinks (200–5000 ms)." />
-                        </StackPanel>
-
-                        <TextBlock Style="{StaticResource LabelStyle}" Text="System Prompt" />
-                        <TextBox x:Name="TxtSystemPrompt"
-                                 Height="120"
-                                 AcceptsReturn="True"
-                                 TextWrapping="Wrap"
-                                 VerticalScrollBarVisibility="Visible" />
+                                <TextBlock Style="{StaticResource LabelStyle}" Text="Timeout (ms)" />
+                                <TextBox x:Name="TxtOcrTimeoutMs" Width="100" HorizontalAlignment="Left" />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
-                </Border>
+                </ScrollViewer>
+            </TabItem>
 
-                <!-- Validation -->
-                <Border x:Name="ValidationErrorBar"
-                        Style="{StaticResource SectionBorderStyle}"
-                        BorderBrush="{StaticResource ErrorBrush}"
-                        Background="#2D1A1A"
-                        Visibility="Collapsed">
-                    <TextBlock x:Name="LblValidationError" TextWrapping="Wrap" />
-                </Border>
-            </StackPanel>
-        </ScrollViewer>
+            <!-- General Tab -->
+            <TabItem Header="General">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,8,0,0">
+                    <StackPanel>
+                        <Border Style="{StaticResource SectionBorderStyle}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource SectionTitleStyle}" Text="Notifications" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                    <RadioButton x:Name="RbFlashWindow" Content="Flash Window" Checked="OnNotificationModeChanged" />
+                                    <RadioButton x:Name="RbCircleDot"   Content="Circle Dot"   Checked="OnNotificationModeChanged" />
+                                    <RadioButton x:Name="RbNothing"     Content="Nothing"      Checked="OnNotificationModeChanged" />
+                                </StackPanel>
+
+                                <StackPanel x:Name="PnlFlashWindowSettings" Margin="0,0,0,6">
+                                    <TextBlock Style="{StaticResource LabelStyle}" Text="Flash window target" />
+                                    <TextBox x:Name="TxtFlashWindowTarget" />
+                                    <TextBlock Style="{StaticResource HintStyle}" Text="Process name (e.g. Chrome). 'All' or 'None'." />
+                                </StackPanel>
+
+                                <StackPanel x:Name="PnlCircleDotSettings" Margin="0,0,0,6" Visibility="Collapsed">
+                                    <TextBlock Style="{StaticResource LabelStyle}" Text="Blink count" />
+                                    <TextBox x:Name="TxtCircleDotBlinkCount" Width="100" HorizontalAlignment="Left" />
+                                    <TextBlock Style="{StaticResource LabelStyle}" Text="Blink duration (ms)" />
+                                    <TextBox x:Name="TxtCircleDotBlinkDurationMs" Width="100" HorizontalAlignment="Left" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource SectionBorderStyle}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource SectionTitleStyle}" Text="Multi-Request" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                    <RadioButton x:Name="RbSequential" Content="Sequential" Checked="OnMultiRequestModeChanged" />
+                                    <RadioButton x:Name="RbRoundRobin" Content="Round Robin" Checked="OnMultiRequestModeChanged" />
+                                    <RadioButton x:Name="RbFastest"    Content="Fastest"    Checked="OnMultiRequestModeChanged" />
+                                </StackPanel>
+                                <TextBlock Style="{StaticResource LabelStyle}" Text="Timeout (ms)" />
+                                <TextBox x:Name="TxtMultiRequestTimeoutMs" Width="100" HorizontalAlignment="Left" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource SectionBorderStyle}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource SectionTitleStyle}" Text="Application" />
+                                <TextBlock Style="{StaticResource LabelStyle}" Text="Quit Hotkey" />
+                                <Button x:Name="BtnQuitApplicationHotkey" Style="{StaticResource SecondaryButtonStyle}" Click="OnHotkeyButtonClick" HorizontalAlignment="Left" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+
+        <!-- Validation -->
+        <Border x:Name="ValidationErrorBar" Grid.Row="0"
+                Style="{StaticResource SectionBorderStyle}"
+                BorderBrush="{StaticResource ErrorBrush}"
+                Background="#2D1A1A"
+                Visibility="Collapsed"
+                VerticalAlignment="Bottom"
+                Margin="12,0,12,12">
+            <TextBlock x:Name="LblValidationError" TextWrapping="Wrap" />
+        </Border>
 
         <!-- Footer -->
         <Border Grid.Row="1"

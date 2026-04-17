@@ -72,6 +72,22 @@ namespace Suterusu.UI
             _hotkeyBindings[GlobalHotkey.QuitApplication] = HotkeyBindingHelper.NormalizeBindingName(
                 config.QuitApplicationHotkey,
                 GlobalHotkey.QuitApplication);
+            _hotkeyBindings[GlobalHotkey.RunOcr] = HotkeyBindingHelper.NormalizeBindingName(
+                config.OcrHotkey,
+                GlobalHotkey.RunOcr);
+
+            // OCR settings
+            if (config.OcrProvider == OcrProvider.HuggingFace)
+                RbOcrHuggingFace.IsChecked = true;
+            else
+                RbOcrLlamaCpp.IsChecked = true;
+            PwdOcrHfToken.Password = config.OcrHfToken ?? string.Empty;
+            TxtOcrHfModel.Text = config.OcrHfModel ?? "zai-org/GLM-OCR";
+            TxtOcrLlamaCppUrl.Text = config.OcrLlamaCppUrl ?? "http://localhost:8080";
+            TxtOcrLlamaCppModel.Text = config.OcrLlamaCppModel ?? "GLM-OCR";
+            TxtOcrPrompt.Text = config.OcrPrompt ?? "Recognize all text from this image.";
+            TxtOcrTimeoutMs.Text = config.OcrTimeoutMs.ToString();
+            UpdateOcrProviderVisibility(config.OcrProvider);
 
             _capturingHotkey = null;
             UpdateHotkeyButtonLabels();
@@ -105,7 +121,16 @@ namespace Suterusu.UI
                 ClearHistoryHotkey       = GetStoredHotkey(GlobalHotkey.ClearHistory),
                 SendClipboardHotkey      = GetStoredHotkey(GlobalHotkey.SendClipboard),
                 CopyLastResponseHotkey   = GetStoredHotkey(GlobalHotkey.CopyLastResponse),
-                QuitApplicationHotkey    = GetStoredHotkey(GlobalHotkey.QuitApplication)
+                QuitApplicationHotkey    = GetStoredHotkey(GlobalHotkey.QuitApplication),
+                OcrEnabled               = true,
+                OcrHotkey                = GetStoredHotkey(GlobalHotkey.RunOcr),
+                OcrProvider              = GetOcrProvider(),
+                OcrPrompt                = TxtOcrPrompt.Text,
+                OcrTimeoutMs             = int.TryParse(TxtOcrTimeoutMs.Text, out int ocrTimeout) ? ocrTimeout : 60000,
+                OcrHfToken               = PwdOcrHfToken.Password,
+                OcrHfModel               = TxtOcrHfModel.Text,
+                OcrLlamaCppUrl           = TxtOcrLlamaCppUrl.Text,
+                OcrLlamaCppModel         = TxtOcrLlamaCppModel.Text
             };
         }
 
@@ -399,10 +424,7 @@ namespace Suterusu.UI
             BtnSendClipboardHotkey.Content = GetHotkeyButtonText(GlobalHotkey.SendClipboard);
             BtnCopyLastResponseHotkey.Content = GetHotkeyButtonText(GlobalHotkey.CopyLastResponse);
             BtnQuitApplicationHotkey.Content = GetHotkeyButtonText(GlobalHotkey.QuitApplication);
-
-            TxtHotkeyCaptureHint.Text = _capturingHotkey == null
-                ? "Click a binding, then press the key combination you want. It is saved immediately. Press ESC to cancel. Each action must use a different combination."
-                : "Capture mode is active. Press the key combination you want to save it immediately, or press ESC to cancel.";
+            BtnOcrHotkey.Content = GetHotkeyButtonText(GlobalHotkey.RunOcr);
         }
 
         private string GetHotkeyButtonText(GlobalHotkey hotkey)
@@ -419,6 +441,7 @@ namespace Suterusu.UI
             if (ReferenceEquals(button, BtnSendClipboardHotkey)) return GlobalHotkey.SendClipboard;
             if (ReferenceEquals(button, BtnCopyLastResponseHotkey)) return GlobalHotkey.CopyLastResponse;
             if (ReferenceEquals(button, BtnQuitApplicationHotkey)) return GlobalHotkey.QuitApplication;
+            if (ReferenceEquals(button, BtnOcrHotkey)) return GlobalHotkey.RunOcr;
             throw new InvalidOperationException("Unknown hotkey button.");
         }
 
@@ -483,6 +506,37 @@ namespace Suterusu.UI
         {
             ValidationErrorBar.Visibility = Visibility.Collapsed;
             LblValidationError.Text       = string.Empty;
+        }
+
+        // ── OCR settings ───────────────────────────────────────────────────────
+
+        private OcrProvider GetOcrProvider()
+        {
+            if (RbOcrLlamaCpp.IsChecked == true) return OcrProvider.LlamaCpp;
+            return OcrProvider.HuggingFace;
+        }
+
+        private void OnOcrEnabledChanged(object sender, RoutedEventArgs e)
+        {
+            PnlHfSettings.IsEnabled = true;
+            PnlLlamaCppSettings.IsEnabled = true;
+            TxtOcrPrompt.IsEnabled = true;
+            TxtOcrTimeoutMs.IsEnabled = true;
+        }
+
+        private void OnOcrProviderChanged(object sender, RoutedEventArgs e)
+        {
+            UpdateOcrProviderVisibility(GetOcrProvider());
+        }
+
+        private void UpdateOcrProviderVisibility(OcrProvider provider)
+        {
+            if (PnlHfSettings == null || PnlLlamaCppSettings == null)
+                return;
+
+            bool isHf = provider == OcrProvider.HuggingFace;
+            PnlHfSettings.Visibility = isHf ? Visibility.Visible : Visibility.Collapsed;
+            PnlLlamaCppSettings.Visibility = isHf ? Visibility.Collapsed : Visibility.Visible;
         }
     }
 }

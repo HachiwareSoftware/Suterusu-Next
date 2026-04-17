@@ -54,13 +54,14 @@ namespace Suterusu.Hooks
 
             AddBinding(bindings, config.ClearHistoryHotkey, GlobalHotkey.ClearHistory);
             AddBinding(bindings, config.SendClipboardHotkey, GlobalHotkey.SendClipboard);
+            AddBinding(bindings, config.OcrHotkey, GlobalHotkey.RunOcr);
             AddBinding(bindings, config.CopyLastResponseHotkey, GlobalHotkey.CopyLastResponse);
             AddBinding(bindings, config.QuitApplicationHotkey, GlobalHotkey.QuitApplication);
 
             _bindings = bindings;
             _pressedKeys.Clear();
             _logger.Info(
-                $"Hotkeys updated: {config.ClearHistoryHotkey}=ClearHistory, {config.SendClipboardHotkey}=SendClipboard, {config.CopyLastResponseHotkey}=CopyLastResponse, {config.QuitApplicationHotkey}=QuitApplication");
+                $"Hotkeys updated: {config.ClearHistoryHotkey}=ClearHistory, {config.SendClipboardHotkey}=SendClipboard, {config.OcrHotkey}=RunOcr, {config.CopyLastResponseHotkey}=CopyLastResponse, {config.QuitApplicationHotkey}=QuitApplication");
         }
 
         public void Install()
@@ -117,7 +118,15 @@ namespace Suterusu.Hooks
 
                     if (ShouldHandleKeyDown(key, out RegisteredHotkey hotkey))
                     {
-                        try { HotkeyTriggered?.Invoke(this, hotkey.Action); }
+                        try
+                        {
+                            var handler = HotkeyTriggered;
+                            if (handler != null)
+                            {
+                                var action = hotkey.Action;
+                                System.Threading.Tasks.Task.Run(() => handler(this, action));
+                            }
+                        }
                         catch (Exception ex)
                         {
                             _logger.Error("Error in HotkeyTriggered handler.", ex);

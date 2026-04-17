@@ -4,17 +4,12 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Suterusu.Configuration;
+using Suterusu.Hooks;
 using Suterusu.Models;
 using Suterusu.Notifications;
 
 namespace Suterusu.Services
 {
-    /// <summary>
-    /// Coordinates global hotkey runtime behavior.
-    /// Send clipboard enqueues requests processed serially.
-    /// Copy last response writes the last AI response back to clipboard.
-    /// Clear history resets the chat state.
-    /// </summary>
     public class ClipboardAiController : IDisposable
     {
         private readonly ClipboardService    _clipboardService;
@@ -24,10 +19,14 @@ namespace Suterusu.Services
         private readonly ILogger             _logger;
         private readonly INotificationService _notifications;
 
+        private IOcrClient _ocrClient;
+        private MouseHook _mouseHook;
+        private ScreenCaptureService _screenCapture;
+
         private readonly ConcurrentQueue<QueuedClipboardRequest> _pendingRequests
             = new ConcurrentQueue<QueuedClipboardRequest>();
 
-        private int  _processorRunning = 0; // 0=idle, 1=running (Interlocked flag)
+        private int  _processorRunning = 0;
         private readonly CancellationTokenSource _cts = new CancellationTokenSource();
 
         public string LastAiResponse { get; private set; }
@@ -46,7 +45,15 @@ namespace Suterusu.Services
             _configManager    = configManager;
             _logger           = logger;
             _notifications    = notifications;
+            _screenCapture    = new ScreenCaptureService();
             _logger.Debug("initialized");
+        }
+
+        public void SetMouseHook(MouseHook mouseHook)
+        {
+            _mouseHook = mouseHook;
+            _mouseHook.SelectionComplete += OnSelectionComplete;
+            _mouseHook.SelectionCancelled += OnSelectionCancelled;
         }
 
         // ----- Public hotkey actions -----
@@ -90,12 +97,112 @@ namespace Suterusu.Services
             }
         }
 
+        public void StartOcrSelection()
+        {
+            if (_ocrClient == null)
+            {
+                _logger.Warn("OCR client not available.");
+                _notifications.NotifyFailure();
+                return;
+            }
+
+            if (_mouseHook == null)
+            {
+                _logger.Warn("Mouse hook not available.");
+                _notifications.NotifyFailure();
+                return;
+            }
+
+            _mouseHook.StartSelection();
+        }
+
+        public void CancelOcrSelection()
+        {
+            if (_mouseHook != null)
+            {
+                _mouseHook.CancelSelection();
+            }
+        }
+
+        public void RefreshOcrClient(IOcrClient client)
+        {
+            _ocrClient = client;
+            _logger.Info("OCR client refreshed.");
+        }
+
         public void RefreshConfiguration()
         {
             AppConfig config = _configManager.Current;
             _logger.Debug($"systemPrompt={config.SystemPrompt?.Length ?? 0} chars, historyLimit={config.HistoryLimit}");
             _chatHistory.UpdateConfiguration(config.SystemPrompt, config.HistoryLimit);
             _logger.Info("Controller configuration refreshed.");
+        }
+
+        // ----- Selection event handlers -----
+
+        private void OnSelectionComplete(object sender, System.Drawing.Rectangle region)
+        {
+            _logger.Info($"Region selected: {region}");
+
+            if (_ocrClient == null)
+            {
+                _logger.Warn("OCR client not available.");
+                _notifications.NotifyFailure();
+                return;
+            }
+
+            Task.Run(async () =>
+            {
+                try
+                {
+                    await ExecuteScreenOcrAsync(region, _cts.Token).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger.Error("Unexpected error during screen OCR.", ex);
+                    _notifications.NotifyFailure();
+                }
+            });
+        }
+
+        private void OnSelectionCancelled(object sender, EventArgs e)
+        {
+            _logger.Info("Selection cancelled by user.");
+            _notifications.NotifyFailure();
+        }
+
+        private async Task ExecuteScreenOcrAsync(System.Drawing.Rectangle region, CancellationToken cancellationToken)
+        {
+            _logger.Info("Capturing screen region.");
+
+            byte[] imageData = _screenCapture.CaptureRegion(region);
+            if (imageData == null || imageData.Length == 0)
+            {
+                _logger.Error("Screen capture failed: empty image.");
+                _notifications.NotifyFailure();
+                return;
+            }
+
+            _logger.Info($"Screen captured ({imageData.Length} bytes).");
+
+            AppConfig config = _configManager.Current;
+            _logger.Debug("calling OCR client");
+            AiSingleAttemptResult ocrResult = await _ocrClient.RunOcrAsync(
+                imageData,
+                config.OcrPrompt,
+                config.OcrTimeoutMs,
+                cancellationToken).ConfigureAwait(false);
+
+            if (!ocrResult.Success)
+            {
+                _logger.Error($"OCR failed: {ocrResult.Error}");
+                _notifications.NotifyFailure();
+                return;
+            }
+
+            LastAiResponse = ocrResult.Content;
+            _logger.Info($"OCR completed. Press {config.CopyLastResponseHotkey} to copy to clipboard.");
+            _notifications.NotifySuccess();
         }
 
         // ----- Internal queue processor -----
@@ -124,7 +231,7 @@ namespace Suterusu.Services
                     if (!_pendingRequests.TryDequeue(out QueuedClipboardRequest _))
                     {
                         _logger.Debug("queue empty, exiting");
-                        break; // queue drained
+                        break;
                     }
 
                     _logger.Debug("dequeued request, processing");
@@ -149,7 +256,6 @@ namespace Suterusu.Services
                 Interlocked.Exchange(ref _processorRunning, 0);
                 _logger.Debug("processor stopped");
 
-                // If new items arrived while we were shutting down, restart
                 if (!_pendingRequests.IsEmpty && !cancellationToken.IsCancellationRequested)
                 {
                     _logger.Debug("new items arrived while shutting down, restarting");
@@ -162,7 +268,6 @@ namespace Suterusu.Services
         {
             _logger.Info("Processing clipboard send request.");
 
-            // Read clipboard
             _logger.Debug("reading clipboard");
             ClipboardReadResult read = _clipboardService.TryReadText();
             if (!read.Success)
@@ -175,13 +280,11 @@ namespace Suterusu.Services
             string userText = read.Text;
             _logger.Info($"Clipboard read OK ({userText.Length} chars).");
 
-            // Build messages
             _logger.Debug("building chat messages");
             IReadOnlyList<ChatMessage> messages =
                 _chatHistory.BuildRequestMessages(userText);
             _logger.Debug($"built {messages.Count} messages");
 
-            // Call AI
             _logger.Debug("calling AI client");
             AiResponseResult aiResult = await _aiClient.SendAsync(
                 _configManager.Current, messages, cancellationToken).ConfigureAwait(false);
@@ -193,7 +296,6 @@ namespace Suterusu.Services
                 return;
             }
 
-            // Record last response for the copy hotkey.
             _chatHistory.AppendSuccessfulTurn(userText, aiResult.Content);
             LastAiResponse = aiResult.Content;
 
@@ -206,6 +308,12 @@ namespace Suterusu.Services
             _logger.Debug("cancelling token source");
             _cts.Cancel();
             _cts.Dispose();
+
+            if (_mouseHook != null)
+            {
+                _mouseHook.SelectionComplete -= OnSelectionComplete;
+                _mouseHook.SelectionCancelled -= OnSelectionCancelled;
+            }
         }
     }
 }

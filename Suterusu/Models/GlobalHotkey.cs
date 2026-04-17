@@ -4,6 +4,7 @@ namespace Suterusu.Models
     {
         ClearHistory,
         SendClipboard,
+        RunOcr,
         CopyLastResponse,
         QuitApplication
     }

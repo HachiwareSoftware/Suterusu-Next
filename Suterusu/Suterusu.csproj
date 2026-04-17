@@ -67,8 +67,10 @@
     <Compile Include="Configuration\ConfigManager.cs" />
     <Compile Include="Configuration\HotkeyBindingHelper.cs" />
     <Compile Include="Configuration\MultiRequestMode.cs" />
-    <Compile Include="Configuration\NotificationMode.cs" />
-    <Compile Include="Hooks\KeyboardHook.cs" />
+<Compile Include="Configuration\NotificationMode.cs" />
+    <Compile Include="Configuration\OcrProvider.cs" />
+<Compile Include="Hooks\KeyboardHook.cs" />
+    <Compile Include="Hooks\MouseHook.cs" />
     <Compile Include="Interop\NativeMethods.cs" />
     <Compile Include="Interop\VirtualDesktopHelper.cs" />
     <Compile Include="Models\AiResponseResult.cs" />
@@ -98,6 +100,11 @@
     <Compile Include="Services\ChatHistory.cs" />
     <Compile Include="Services\ClipboardAiController.cs" />
     <Compile Include="Services\ClipboardService.cs" />
+    <Compile Include="Services\IOcrClient.cs" />
+    <Compile Include="Services\HuggingFaceOcrClient.cs" />
+    <Compile Include="Services\LlamaCppOcrClient.cs" />
+    <Compile Include="Services\OcrClientFactory.cs" />
+    <Compile Include="Services\ScreenCaptureService.cs" />
     <Compile Include="Services\ILogger.cs" />
     <Compile Include="Services\NLogLogger.cs" />
     <Compile Include="UI\SettingsWindow.xaml.cs">

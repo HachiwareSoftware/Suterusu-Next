@@ -6,14 +6,11 @@ using Suterusu.Models;
 
 namespace Suterusu.Services
 {
-    /// <summary>
-    /// Safe clipboard read/write using Win32 APIs with retry for lock contention.
-    /// </summary>
     public class ClipboardService
     {
         private readonly ILogger _logger;
-        private const int RetryCount      = 5;
-        private const int RetryDelayMs    = 50;
+        private const int RetryCount   = 5;
+        private const int RetryDelayMs = 50;
 
         public ClipboardService(ILogger logger)
         {
@@ -73,7 +70,6 @@ namespace Suterusu.Services
                 {
                     NativeMethods.EmptyClipboard();
 
-                    // Allocate global memory for the string (+1 for null terminator, *2 for Unicode)
                     int    byteCount = (text.Length + 1) * 2;
                     IntPtr hMem      = NativeMethods.GlobalAlloc(NativeMethods.GMEM_MOVEABLE, (UIntPtr)byteCount);
 
@@ -83,14 +79,12 @@ namespace Suterusu.Services
                     IntPtr pMem = NativeMethods.GlobalLock(hMem);
                     if (pMem == IntPtr.Zero)
                     {
-                        // Can't free hMem safely here; just fail
                         return ClipboardWriteResult.Fail("GlobalLock failed.");
                     }
 
                     try
                     {
                         Marshal.Copy(text.ToCharArray(), 0, pMem, text.Length);
-                        // Null terminator
                         Marshal.WriteInt16(pMem, text.Length * 2, 0);
                     }
                     finally
@@ -129,8 +123,6 @@ namespace Suterusu.Services
             }
 
             _logger.Error($"Clipboard operation failed after {RetryCount} attempts.");
-            // Return a failure result - callers expect ClipboardReadResult or ClipboardWriteResult
-            // We use dynamic dispatch via overloading — callers cast properly
             return CreateFailResult<T>("Clipboard locked after retries.");
         }
 

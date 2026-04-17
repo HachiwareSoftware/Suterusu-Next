@@ -1,12 +1,12 @@
 # AGENTS.md
 
-Dev/agent ref for Suterusu-Next repo.
+Developer and agent reference for the Suterusu-Next repository.
 
 ---
 
 ## What this project is
 
-Suterusu-Next: headless Windows bg utility, **C# / .NET Framework 4.8**. Bridges clipboard ↔ any OpenAI-compatible API. Interaction via global hotkeys (configurable):
+Suterusu-Next is a headless Windows background utility written in **C# / .NET Framework 4.8**. It bridges the system clipboard and any OpenAI-compatible API. User interacts entirely through global hotkeys (configurable):
 
 | Default Key | Action |
 |-------------|--------|
@@ -15,9 +15,9 @@ Suterusu-Next: headless Windows bg utility, **C# / .NET Framework 4.8**. Bridges
 | F8  | Copy AI response to clipboard |
 | F12 | Quit |
 
-AI done → notify via **FlashWindow** (taskbar flash), **CircleDot** (WinForms overlay), or **Nothing**. Config: `config.json` next to exe. WPF settings UI via `--open-settings` CLI arg.
+AI operation completes → user notified via configurable mode: **FlashWindow** (taskbar flash), **CircleDot** (WinForms overlay), or **Nothing**. Config in `config.json` next to executable. WPF settings UI via `--open-settings` CLI argument.
 
-Multi-endpoint dispatch: **Sequential**, **RoundRobin**, **Fastest**.
+Supports multiple AI endpoints with three dispatch strategies: **Sequential**, **RoundRobin**, **Fastest**.
 
 ---
 
@@ -98,7 +98,7 @@ Suterusu-Next.sln
 
 ## Build
 
-`Suterusu.csproj`: **old-style ToolsVersion 15.0**. Needs **Visual Studio MSBuild** — `dotnet build` fails (unresolved NuGet packages).
+Main project (`Suterusu.csproj`) is **old-style ToolsVersion 15.0**. Requires **Visual Studio MSBuild** — `dotnet build` fails with unresolved NuGet packages.
 
 ```powershell
 # Build (Debug)
@@ -126,14 +126,14 @@ Framework refs: `System`, `System.Core`, `System.Net.Http`, `System.Windows.Form
 
 ## Tests
 
-SDK-style test project; **can** use `dotnet` CLI, must build via MSBuild first (refs main project output).
+SDK-style test project; **can** use `dotnet` CLI but must be built via MSBuild first (references main project output).
 
 ```powershell
 # Run all tests (after MSBuild build)
 dotnet test "Suterusu.Tests\Suterusu.Tests.csproj" --no-build --configuration Debug
 ```
 
-Expected: **82 tests, 0 failures**. Run full suite after any change.
+Expected: **82 tests, 0 failures**. Always run full suite after any change.
 
 Test packages: `xunit 2.6.6`, `xunit.runner.visualstudio 2.5.6`, `Moq 4.20.72`, `Microsoft.NET.Test.Sdk 17.8.0`
 
@@ -156,7 +156,7 @@ Test packages: `xunit 2.6.6`, `xunit.runner.visualstudio 2.5.6`, `Moq 4.20.72`, 
 
 ### Service wiring
 
-`HeadlessApplicationContext` constructs all. No IoC — manual wiring. Constructor sequence:
+`HeadlessApplicationContext` constructs everything. No IoC container — dependencies wired manually. Constructor wiring sequence:
 
 1. `ConfigManager` (`"Suterusu.Config"`)
 2. `_config = _configManager.LoadOrCreateDefault()`
@@ -178,7 +178,7 @@ Test packages: `xunit 2.6.6`, `xunit.runner.visualstudio 2.5.6`, `Moq 4.20.72`, 
 
 `Dispose(bool)` disposes: `_keyboardHook`, `_controller`, `_aiClient`, `_notificationService` (if `IDisposable`).
 
-Add new service: add field, instantiate in constructor, dispose in `Dispose(bool)`.
+When adding a new service: add field, instantiate in constructor, dispose in `Dispose(bool)`.
 
 ### Notification pipeline
 
@@ -187,11 +187,11 @@ Add new service: add field, instantiate in constructor, dispose in `Dispose(bool
 - `CircleDot` → `new CircleDotNotificationService(config.CircleDotBlinkCount, config.CircleDotBlinkDurationMs)`
 - `Nothing` → `new NullNotificationService()`
 
-Pass full `AppConfig` to factory — never bare `NotificationMode` enum.
+Always pass full `AppConfig` to factory — never a bare `NotificationMode` enum.
 
 ### Win32 interop
 
-All `DllImport` in `Suterusu/Interop/NativeMethods.cs`. No scattering.
+All `DllImport` declarations in `Suterusu/Interop/NativeMethods.cs`. Do not scatter across other files.
 
 Key declarations:
 - `user32.dll`: `SetWindowsHookEx`, `UnhookWindowsHookEx`, `CallNextHookEx`, `GetForegroundWindow`, `EnumWindows`, `IsWindowVisible`, `GetWindowThreadProcessId`, `FlashWindowEx`, `OpenClipboard`, `CloseClipboard`, `EmptyClipboard`, `GetClipboardData`, `SetClipboardData`, `IsClipboardFormatAvailable`, `SetWindowPos`, `GetWindowLong`, `SetWindowLong`, `ShowWindow`
@@ -204,7 +204,7 @@ Key constants: `WH_KEYBOARD_LL=13`, `CF_UNICODETEXT=13`, `GMEM_MOVEABLE=0x0002`,
 
 ### Configuration
 
-`AppConfig` → `config.json` via `JsonSettings.Serialize()` + `SnakeCaseNamingStrategy` (Newtonsoft.Json). PascalCase auto-converts: `ApiBaseUrl` → `api_base_url`. No `[JsonProperty]` needed.
+`AppConfig` serialised to `config.json` via `JsonSettings.Serialize()` → `SnakeCaseNamingStrategy` (Newtonsoft.Json). PascalCase auto-converts: `ApiBaseUrl` → `api_base_url`. No `[JsonProperty]` annotations needed.
 
 **All AppConfig properties and defaults:**
 
@@ -238,7 +238,7 @@ Key constants: `WH_KEYBOARD_LL=13`, `CF_UNICODETEXT=13`, `GMEM_MOVEABLE=0x0002`,
 
 **Config pipeline:** `LoadOrCreateDefault` always calls `Normalize()`. `Save` calls `Validate()` → `Normalize()` → write JSON. Corruption → backup (`.bak.yyyyMMddHHmmss`), create default, save.
 
-Add new config property:
+When adding a new config property:
 1. Add to `AppConfig`
 2. Set default in `CreateDefault()`
 3. Add clamp in `Normalize()`
@@ -312,7 +312,7 @@ Per-request timeout: `CancellationTokenSource.CancelAfter(config.MultiRequestTim
 - `OnPaint`: anti-aliased ellipse with `Color.FromArgb(_alpha, _dotColor)`
 - Constants: `DotSize=14`, `MarginRight=20`, `MarginBottom=20`, `BlinkTimerMs=20`
 
-`VirtualDesktopHelper.MoveWindowToCurrentDesktop(hwnd)` called after form shown — moves overlay to current virtual desktop via `IVirtualDesktopManager`. `TryInitializeComForCurrentThread` on STA thread entry; `shouldUninitialize=true` only on `S_OK` (not `S_FALSE`/`RPC_E_CHANGED_MODE`).
+`VirtualDesktopHelper.MoveWindowToCurrentDesktop(hwnd)` called after form shown — moves overlay to current virtual desktop via `IVirtualDesktopManager` COM interface. `TryInitializeComForCurrentThread` called on STA thread entry; `shouldUninitialize=true` only on `S_OK` (not `S_FALSE`/`RPC_E_CHANGED_MODE`).
 
 Blink animation: two `Timer` objects — close timer (total duration) + blink timer (20ms interval, alpha oscillation).
 
@@ -333,7 +333,7 @@ Default target `"Chrome"` if blank; default duration `1600ms` if ≤0.
 
 ### Result types
 
-All ops return typed result objects — no exceptions across service boundaries. Private constructors + static factory methods.
+All service operations return typed result objects — no exceptions thrown across service boundaries. Private constructors enforce via static factory methods.
 
 | Type | Ok payload | Fail payload |
 |---|---|---|
@@ -375,7 +375,7 @@ Logger name conventions: `"Suterusu.App"`, `"Suterusu.Config"`, `"Suterusu.Clipb
 - `bool _isApplyingEntryPreset`, `bool _isSyncingEntryPreset` — suppress feedback loop in preset↔URL sync
 - `GlobalHotkey? _capturingHotkey` — non-null when capturing key
 
-Constructor args: `ConfigManager configManager, ClipboardAiController controller = null, Action<AppConfig> configSaved = null`. Controller optional (null for `--open-settings`).
+Constructor args: `ConfigManager configManager, ClipboardAiController controller = null, Action<AppConfig> configSaved = null`. Controller optional (null when opened standalone via `--open-settings`).
 
 Key methods:
 - `LoadConfig(AppConfig)` — populate all controls from config; clones `ModelEntry` items
@@ -414,7 +414,7 @@ Layout sections: Model Priority (ListBox + CRUD + inline entry form) → Behavio
 }
 ```
 
-Plugin type `"model-selector"` in sample. Source not in workspace (compiled artifacts only in `plugins/*/bin/`).
+Plugin type `"model-selector"` seen in sample. Plugin source not in workspace (compiled artifacts only in `plugins/*/bin/`).
 
 ---
 

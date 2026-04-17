@@ -19,6 +19,8 @@ namespace Suterusu.Configuration
                     return "F6";
                 case GlobalHotkey.SendClipboard:
                     return "F7";
+                case GlobalHotkey.RunOcr:
+                    return "Shift+F7";
                 case GlobalHotkey.CopyLastResponse:
                     return "F8";
                 case GlobalHotkey.QuitApplication:
@@ -112,14 +114,16 @@ namespace Suterusu.Configuration
             string clearHistoryBinding,
             string sendClipboardBinding,
             string copyLastResponseBinding,
-            string quitApplicationBinding)
+            string quitApplicationBinding,
+            string ocrBinding)
         {
             var bindings = new[]
             {
                 NormalizeIfValid(clearHistoryBinding),
                 NormalizeIfValid(sendClipboardBinding),
                 NormalizeIfValid(copyLastResponseBinding),
-                NormalizeIfValid(quitApplicationBinding)
+                NormalizeIfValid(quitApplicationBinding),
+                NormalizeIfValid(ocrBinding)
             };
 
             return bindings
