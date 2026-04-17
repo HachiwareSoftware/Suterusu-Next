@@ -101,9 +101,12 @@
     <Compile Include="Services\ClipboardAiController.cs" />
     <Compile Include="Services\ClipboardService.cs" />
     <Compile Include="Services\IOcrClient.cs" />
+    <Compile Include="Services\CustomOcrClient.cs" />
     <Compile Include="Services\HuggingFaceOcrClient.cs" />
+    <Compile Include="Services\LlamaCppModelsClient.cs" />
     <Compile Include="Services\LlamaCppOcrClient.cs" />
     <Compile Include="Services\OcrClientFactory.cs" />
+    <Compile Include="Services\ZaiOcrClient.cs" />
     <Compile Include="Services\ScreenCaptureService.cs" />
     <Compile Include="Services\ILogger.cs" />
     <Compile Include="Services\NLogLogger.cs" />

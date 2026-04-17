@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -77,17 +78,29 @@ namespace Suterusu.UI
                 GlobalHotkey.RunOcr);
 
             // OCR settings
-            if (config.Ocr?.Provider == OcrProvider.HuggingFace)
-                RbOcrHuggingFace.IsChecked = true;
-            else
+            var ocrProvider = config.Ocr?.Provider ?? OcrProvider.LlamaCpp;
+            if (ocrProvider == OcrProvider.LlamaCpp)
                 RbOcrLlamaCpp.IsChecked = true;
-            PwdOcrHfToken.Password = config.Ocr?.HfToken ?? string.Empty;
-            TxtOcrHfModel.Text = config.Ocr?.HfModel ?? "zai-org/GLM-OCR";
+            else if (ocrProvider == OcrProvider.Zai)
+                RbOcrZai.IsChecked = true;
+            else if (ocrProvider == OcrProvider.Custom)
+                RbOcrCustom.IsChecked = true;
+            else
+                RbOcrHuggingFace.IsChecked = true;
+
             TxtOcrLlamaCppUrl.Text = config.Ocr?.LlamaCppUrl ?? "http://localhost:8080";
-            TxtOcrLlamaCppModel.Text = config.Ocr?.LlamaCppModel ?? "GLM-OCR";
+            CboLlamaCppModel.Text = config.Ocr?.LlamaCppModel ?? "ggml-org/GLM-OCR-GGUF";
+            PwdOcrZaiToken.Password = config.Ocr?.ZaiToken ?? string.Empty;
+            TxtOcrZaiModel.Text = config.Ocr?.ZaiModel ?? "glm-ocr";
+            TxtOcrCustomUrl.Text = config.Ocr?.CustomUrl ?? string.Empty;
+            PwdOcrCustomApiKey.Password = config.Ocr?.CustomApiKey ?? string.Empty;
+            TxtOcrCustomModel.Text = config.Ocr?.CustomModel ?? string.Empty;
+            TxtOcrHfUrl.Text = config.Ocr?.HfUrl ?? "https://api.huggingface.co/v1";
+            PwdOcrHfToken.Password = config.Ocr?.HfToken ?? string.Empty;
+            TxtOcrHfModel.Text = config.Ocr?.HfModel ?? "google/ocr";
             TxtOcrPrompt.Text = config.Ocr?.Prompt ?? "Recognize all text from this image.";
             TxtOcrTimeoutMs.Text = config.Ocr?.TimeoutMs.ToString() ?? "60000";
-            UpdateOcrProviderVisibility(config.Ocr?.Provider ?? OcrProvider.HuggingFace);
+            UpdateOcrProviderVisibility(ocrProvider);
 
             _capturingHotkey = null;
             UpdateHotkeyButtonLabels();
@@ -129,10 +142,16 @@ namespace Suterusu.UI
                     Provider       = GetOcrProvider(),
                     Prompt         = TxtOcrPrompt.Text,
                     TimeoutMs      = int.TryParse(TxtOcrTimeoutMs.Text, out int ocrTimeout) ? ocrTimeout : 60000,
-                    HfToken        = PwdOcrHfToken.Password,
-                    HfModel        = TxtOcrHfModel.Text,
                     LlamaCppUrl    = TxtOcrLlamaCppUrl.Text,
-                    LlamaCppModel  = TxtOcrLlamaCppModel.Text
+                    LlamaCppModel  = CboLlamaCppModel.Text,
+                    ZaiToken       = PwdOcrZaiToken.Password,
+                    ZaiModel       = TxtOcrZaiModel.Text,
+                    CustomUrl      = TxtOcrCustomUrl.Text,
+                    CustomApiKey   = PwdOcrCustomApiKey.Password,
+                    CustomModel    = TxtOcrCustomModel.Text,
+                    HfUrl          = TxtOcrHfUrl.Text,
+                    HfToken        = PwdOcrHfToken.Password,
+                    HfModel        = TxtOcrHfModel.Text
                 }
             };
         }
@@ -516,13 +535,17 @@ namespace Suterusu.UI
         private OcrProvider GetOcrProvider()
         {
             if (RbOcrLlamaCpp.IsChecked == true) return OcrProvider.LlamaCpp;
+            if (RbOcrZai.IsChecked == true) return OcrProvider.Zai;
+            if (RbOcrCustom.IsChecked == true) return OcrProvider.Custom;
             return OcrProvider.HuggingFace;
         }
 
         private void OnOcrEnabledChanged(object sender, RoutedEventArgs e)
         {
-            PnlHfSettings.IsEnabled = true;
             PnlLlamaCppSettings.IsEnabled = true;
+            PnlZaiSettings.IsEnabled = true;
+            PnlCustomSettings.IsEnabled = true;
+            PnlHfSettings.IsEnabled = true;
             TxtOcrPrompt.IsEnabled = true;
             TxtOcrTimeoutMs.IsEnabled = true;
         }
@@ -534,12 +557,54 @@ namespace Suterusu.UI
 
         private void UpdateOcrProviderVisibility(OcrProvider provider)
         {
-            if (PnlHfSettings == null || PnlLlamaCppSettings == null)
+            if (PnlLlamaCppSettings == null || PnlZaiSettings == null || PnlCustomSettings == null || PnlHfSettings == null)
                 return;
 
-            bool isHf = provider == OcrProvider.HuggingFace;
-            PnlHfSettings.Visibility = isHf ? Visibility.Visible : Visibility.Collapsed;
-            PnlLlamaCppSettings.Visibility = isHf ? Visibility.Collapsed : Visibility.Visible;
+            PnlLlamaCppSettings.Visibility = provider == OcrProvider.LlamaCpp ? Visibility.Visible : Visibility.Collapsed;
+            PnlZaiSettings.Visibility = provider == OcrProvider.Zai ? Visibility.Visible : Visibility.Collapsed;
+            PnlCustomSettings.Visibility = provider == OcrProvider.Custom ? Visibility.Visible : Visibility.Collapsed;
+            PnlHfSettings.Visibility = provider == OcrProvider.HuggingFace ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private async void OnFetchLlamaCppModels(object sender, RoutedEventArgs e)
+        {
+            var url = TxtOcrLlamaCppUrl.Text?.Trim();
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                ShowValidation("Please enter a llama.cpp server URL first.");
+                return;
+            }
+
+            BtnFetchLlamaCppModels.IsEnabled = false;
+            BtnFetchLlamaCppModels.Content = "Fetching...";
+            HideValidation();
+
+            try
+            {
+                var client = new LlamaCppModelsClient(_logger);
+                var models = await client.GetAvailableModelsAsync(url, 10000, CancellationToken.None);
+
+                CboLlamaCppModel.Items.Clear();
+                if (models.Count > 0)
+                {
+                    foreach (var model in models)
+                        CboLlamaCppModel.Items.Add(model);
+                    CboLlamaCppModel.SelectedIndex = 0;
+                }
+                else
+                {
+                    ShowValidation("No models found. Please enter model name manually.");
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowValidation($"Failed to fetch models: {ex.Message}");
+            }
+            finally
+            {
+                BtnFetchLlamaCppModels.IsEnabled = true;
+                BtnFetchLlamaCppModels.Content = "Fetch Models";
+            }
         }
     }
 }

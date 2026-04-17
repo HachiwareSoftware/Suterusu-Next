@@ -9,21 +9,37 @@ namespace Suterusu.Services
             if (config.Ocr == null || !config.Ocr.Enabled)
                 return null;
 
-            if (config.Ocr.Provider == OcrProvider.HuggingFace)
+            switch (config.Ocr.Provider)
             {
-                return new HuggingFaceOcrClient(
-                    logger,
-                    config.Ocr.HfToken,
-                    config.Ocr.HfModel);
+                case OcrProvider.LlamaCpp:
+                    return new LlamaCppOcrClient(
+                        logger,
+                        config.Ocr.LlamaCppUrl,
+                        config.Ocr.LlamaCppModel);
+
+                case OcrProvider.Zai:
+                    return new ZaiOcrClient(
+                        logger,
+                        config.Ocr.ZaiToken,
+                        config.Ocr.ZaiModel);
+
+                case OcrProvider.Custom:
+                    return new CustomOcrClient(
+                        logger,
+                        config.Ocr.CustomUrl,
+                        config.Ocr.CustomApiKey,
+                        config.Ocr.CustomModel);
+
+                case OcrProvider.HuggingFace:
+                    return new HuggingFaceOcrClient(
+                        logger,
+                        config.Ocr.HfUrl,
+                        config.Ocr.HfToken,
+                        config.Ocr.HfModel);
+
+                default:
+                    return null;
             }
-            else if (config.Ocr.Provider == OcrProvider.LlamaCpp)
-            {
-                return new LlamaCppOcrClient(
-                    logger,
-                    config.Ocr.LlamaCppUrl,
-                    config.Ocr.LlamaCppModel);
-            }
-            return null;
         }
     }
 }

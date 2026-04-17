@@ -110,7 +110,27 @@ namespace Suterusu.Application
             _logger.Info($"  {_config.QuitApplicationHotkey} - Quit application");
             _logger.Info("");
 
-            _logger.Info($"OCR: {_config.Ocr?.Provider} (model={_config.Ocr?.HfModel})");
+            var ocrProvider = _config.Ocr?.Provider.ToString().ToLower() ?? "none";
+            string ocrModel = "";
+            if (_config.Ocr != null)
+            {
+                switch (_config.Ocr.Provider)
+                {
+                    case OcrProvider.LlamaCpp:
+                        ocrModel = _config.Ocr.LlamaCppModel;
+                        break;
+                    case OcrProvider.Zai:
+                        ocrModel = _config.Ocr.ZaiModel;
+                        break;
+                    case OcrProvider.Custom:
+                        ocrModel = _config.Ocr.CustomModel;
+                        break;
+                    case OcrProvider.HuggingFace:
+                        ocrModel = _config.Ocr.HfModel;
+                        break;
+                }
+            }
+            _logger.Info($"OCR: {ocrProvider} (model={ocrModel})");
             _logger.Info("");
         }
 

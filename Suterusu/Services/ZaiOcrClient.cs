@@ -4,25 +4,31 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using Suterusu.Models;
 
 namespace Suterusu.Services
 {
-    public class HuggingFaceOcrClient : IOcrClient
+    public class ZaiOcrResponse
+    {
+        [JsonProperty("text")]
+        public string Text { get; set; }
+
+        [JsonProperty("parsed_text")]
+        public string ParsedText { get; set; }
+    }
+
+    public class ZaiOcrClient : IOcrClient
     {
         private readonly ILogger _logger;
         private readonly HttpClient _httpClient;
-        private readonly string _baseUrl;
         private readonly string _token;
         private readonly string _model;
 
-        public HuggingFaceOcrClient(ILogger logger, string baseUrl, string token, string model, HttpMessageHandler handler = null)
+        public ZaiOcrClient(ILogger logger, string token, string model, HttpMessageHandler handler = null)
         {
             _logger = logger;
-            _baseUrl = baseUrl?.TrimEnd('/') ?? "https://api.huggingface.co/v1";
             _token = token;
-            _model = string.IsNullOrWhiteSpace(model) ? "google/ocr" : model;
+            _model = string.IsNullOrWhiteSpace(model) ? "glm-ocr" : model;
             _httpClient = handler != null
                 ? new HttpClient(handler)
                 : new HttpClient();
@@ -40,12 +46,11 @@ namespace Suterusu.Services
                 var requestBody = new
                 {
                     model = _model,
-                    inputs = $"data:image/png;base64,{base64Image}"
+                    file = $"data:image/png;base64,{base64Image}"
                 };
                 var jsonBody = JsonConvert.SerializeObject(requestBody);
 
-                var url = _baseUrl + "/vision/ocr";
-                var httpRequest = new HttpRequestMessage(HttpMethod.Post, url)
+                var httpRequest = new HttpRequestMessage(HttpMethod.Post, "https://api.z.ai/api/paas/v4/layout_parsing")
                 {
                     Content = new StringContent(jsonBody, Encoding.UTF8, "application/json")
                 };
@@ -60,17 +65,11 @@ namespace Suterusu.Services
 
                     if (!response.IsSuccessStatusCode)
                     {
-                        return AiSingleAttemptResult.Fail($"HuggingFace API error: {response.StatusCode} - {responseJson}");
+                        return AiSingleAttemptResult.Fail($"Z.ai API error: {response.StatusCode} - {responseJson}");
                     }
 
-                    string content = null;
-
-                    var json = JArray.Parse(responseJson);
-                    if (json.Count > 0)
-                    {
-                        content = json[0]?.ToString();
-                    }
-
+                    var zaiResponse = JsonConvert.DeserializeObject<ZaiOcrResponse>(responseJson);
+                    string content = zaiResponse?.Text ?? zaiResponse?.ParsedText;
                     if (string.IsNullOrEmpty(content))
                     {
                         return AiSingleAttemptResult.Fail("No content in response.");
@@ -85,7 +84,7 @@ namespace Suterusu.Services
             }
             catch (Exception ex)
             {
-                _logger.Error("HuggingFace OCR failed.", ex);
+                _logger.Error("Z.ai OCR failed.", ex);
                 return AiSingleAttemptResult.Fail($"OCR failed: {ex.Message}");
             }
         }

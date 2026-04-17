@@ -22,8 +22,8 @@ namespace Suterusu
             else
                 ConsoleManager.FreeHeadlessConsole();
 
-            // One-time global NLog setup (console only in --debug mode)
-            NLogLogger.Configure(options.DebugEnabled);
+            // One-time global NLog setup (no file logging in --open-settings mode)
+            NLogLogger.Configure(options.DebugEnabled, !options.OpenSettings);
 
             // --open-settings: show WPF settings window directly on this [STAThread].
             // ShowDialog() pushes WPF's own DispatcherFrame, giving full keyboard support

@@ -281,29 +281,62 @@
 
                                 <TextBlock Style="{StaticResource LabelStyle}" Text="Provider" />
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                                    <RadioButton x:Name="RbOcrHuggingFace" Content="Z.ai" Checked="OnOcrProviderChanged" />
                                     <RadioButton x:Name="RbOcrLlamaCpp"   Content="llama.cpp"   Checked="OnOcrProviderChanged" />
+                                    <RadioButton x:Name="RbOcrZai"       Content="Z.ai"       Checked="OnOcrProviderChanged" />
+                                    <RadioButton x:Name="RbOcrCustom"    Content="Custom"     Checked="OnOcrProviderChanged" />
+                                    <RadioButton x:Name="RbOcrHuggingFace" Content="HuggingFace" Checked="OnOcrProviderChanged" />
+                                </StackPanel>
+
+                                <!-- llama.cpp settings -->
+                                <StackPanel x:Name="PnlLlamaCppSettings">
+                                    <TextBlock Style="{StaticResource LabelStyle}" Text="Server URL" />
+                                    <TextBox x:Name="TxtOcrLlamaCppUrl" />
+                                    <TextBlock Style="{StaticResource HintStyle}" Text="Default: http://localhost:8080" />
+
+                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                        <TextBlock Style="{StaticResource LabelStyle}" Text="Model" VerticalAlignment="Center" />
+                                        <Button x:Name="BtnFetchLlamaCppModels" Content="Fetch Models" Click="OnFetchLlamaCppModels" Margin="8,0,0,0" Padding="8,2" />
+                                    </StackPanel>
+                                    <ComboBox x:Name="CboLlamaCppModel" IsEditable="True" />
+                                    <TextBlock Style="{StaticResource HintStyle}" Text="Select from dropdown or type manually. Requires multimodal vision model." />
+                                </StackPanel>
+
+                                <!-- Z.ai settings -->
+                                <StackPanel x:Name="PnlZaiSettings" Visibility="Collapsed">
+                                    <TextBlock Style="{StaticResource LabelStyle}" Text="API Token" />
+                                    <PasswordBox x:Name="PwdOcrZaiToken" />
+
+                                    <TextBlock Style="{StaticResource LabelStyle}" Text="Model" />
+                                    <TextBox x:Name="TxtOcrZaiModel" />
+                                    <TextBlock Style="{StaticResource HintStyle}" Text="Default: glm-ocr" />
+                                </StackPanel>
+
+                                <!-- Custom settings -->
+                                <StackPanel x:Name="PnlCustomSettings" Visibility="Collapsed">
+                                    <TextBlock Style="{StaticResource LabelStyle}" Text="API Endpoint" />
+                                    <TextBox x:Name="TxtOcrCustomUrl" />
+                                    <TextBlock Style="{StaticResource HintStyle}" Text="OpenAI-compatible endpoint (e.g. https://api.openai.com/v1)" />
+
+                                    <TextBlock Style="{StaticResource LabelStyle}" Text="API Key" />
+                                    <PasswordBox x:Name="PwdOcrCustomApiKey" />
+
+                                    <TextBlock Style="{StaticResource LabelStyle}" Text="Model" />
+                                    <TextBox x:Name="TxtOcrCustomModel" />
+                                    <TextBlock Style="{StaticResource HintStyle}" Text="Vision model name (e.g. gpt-4o-mini)" />
                                 </StackPanel>
 
                                 <!-- HuggingFace settings -->
-                                <StackPanel x:Name="PnlHfSettings">
+                                <StackPanel x:Name="PnlHfSettings" Visibility="Collapsed">
+                                    <TextBlock Style="{StaticResource LabelStyle}" Text="API Endpoint" />
+                                    <TextBox x:Name="TxtOcrHfUrl" />
+                                    <TextBlock Style="{StaticResource HintStyle}" Text="Default: https://api.huggingface.co/v1" />
+
                                     <TextBlock Style="{StaticResource LabelStyle}" Text="API Token" />
                                     <PasswordBox x:Name="PwdOcrHfToken" />
 
                                     <TextBlock Style="{StaticResource LabelStyle}" Text="Model" />
                                     <TextBox x:Name="TxtOcrHfModel" />
-                                    <TextBlock Style="{StaticResource HintStyle}" Text="Default: zai-org/GLM-OCR" />
-                                </StackPanel>
-
-                                <!-- llama.cpp settings -->
-                                <StackPanel x:Name="PnlLlamaCppSettings" Visibility="Collapsed">
-                                    <TextBlock Style="{StaticResource LabelStyle}" Text="Server URL" />
-                                    <TextBox x:Name="TxtOcrLlamaCppUrl" />
-                                    <TextBlock Style="{StaticResource HintStyle}" Text="Default: http://localhost:8080" />
-
-                                    <TextBlock Style="{StaticResource LabelStyle}" Text="Model" />
-                                    <TextBox x:Name="TxtOcrLlamaCppModel" />
-                                    <TextBlock Style="{StaticResource HintStyle}" Text="Model name or alias. Requires multimodal vision model." />
+                                    <TextBlock Style="{StaticResource HintStyle}" Text="Default: google/ocr" />
                                 </StackPanel>
 
                                 <TextBlock Style="{StaticResource LabelStyle}" Text="Prompt" />

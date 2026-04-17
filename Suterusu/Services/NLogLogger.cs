@@ -26,7 +26,7 @@ namespace Suterusu.Services
         /// <summary>
         /// One-time global NLog setup. Must be called before instantiating any NLogLogger.
         /// </summary>
-        public static void Configure(bool consoleEnabled)
+        public static void Configure(bool consoleEnabled, bool fileEnabled = true)
         {
             lock (_configLock)
             {
@@ -46,15 +46,18 @@ namespace Suterusu.Services
 
                 var config = new LoggingConfiguration();
 
-                var fileTarget = new FileTarget("file")
+                if (fileEnabled)
                 {
-                    FileName = filePath,
-                    Layout = layout,
-                    Encoding = System.Text.Encoding.UTF8,
-                    KeepFileOpen = true
-                };
-                config.AddTarget(fileTarget);
-                config.AddRule(LogLevel.Debug, LogLevel.Fatal, fileTarget);
+                    var fileTarget = new FileTarget("file")
+                    {
+                        FileName = filePath,
+                        Layout = layout,
+                        Encoding = System.Text.Encoding.UTF8,
+                        KeepFileOpen = true
+                    };
+                    config.AddTarget(fileTarget);
+                    config.AddRule(LogLevel.Debug, LogLevel.Fatal, fileTarget);
+                }
 
                 if (consoleEnabled)
                 {

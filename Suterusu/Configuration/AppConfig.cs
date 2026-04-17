@@ -11,22 +11,42 @@ namespace Suterusu.Configuration
         public OcrProvider Provider { get; set; }
         public string Prompt { get; set; }
         public int TimeoutMs { get; set; }
-        public string HfToken { get; set; }
-        public string HfModel { get; set; }
+
+        // llama.cpp settings
         public string LlamaCppUrl { get; set; }
         public string LlamaCppModel { get; set; }
+
+        // Z.ai settings
+        public string ZaiToken { get; set; }
+        public string ZaiModel { get; set; }
+
+        // Custom (OpenAI-compatible) settings
+        public string CustomUrl { get; set; }
+        public string CustomApiKey { get; set; }
+        public string CustomModel { get; set; }
+
+        // HuggingFace settings
+        public string HfToken { get; set; }
+        public string HfModel { get; set; }
+        public string HfUrl { get; set; }
 
         public static OcrSettings CreateDefault() => new OcrSettings
         {
             Enabled = false,
             Hotkey = "Shift+F7",
-            Provider = OcrProvider.HuggingFace,
+            Provider = OcrProvider.LlamaCpp,
             Prompt = "Recognize all text from this image.",
             TimeoutMs = 60000,
-            HfToken = "",
-            HfModel = "glm-ocr",
             LlamaCppUrl = "http://localhost:8080",
-            LlamaCppModel = "GLM-OCR"
+            LlamaCppModel = "ggml-org/GLM-OCR-GGUF",
+            ZaiToken = "",
+            ZaiModel = "glm-ocr",
+            CustomUrl = "",
+            CustomApiKey = "",
+            CustomModel = "",
+            HfToken = "",
+            HfModel = "google/ocr",
+            HfUrl = "https://api.huggingface.co/v1"
         };
     }
 
@@ -162,14 +182,20 @@ namespace Suterusu.Configuration
             if (Ocr.TimeoutMs > 120000)
                 Ocr.TimeoutMs = 120000;
 
-            if (string.IsNullOrWhiteSpace(Ocr.HfModel))
-                Ocr.HfModel = "glm-ocr";
-
             if (string.IsNullOrWhiteSpace(Ocr.LlamaCppModel))
-                Ocr.LlamaCppModel = "GLM-OCR";
+                Ocr.LlamaCppModel = "ggml-org/GLM-OCR-GGUF";
 
             if (string.IsNullOrWhiteSpace(Ocr.LlamaCppUrl))
                 Ocr.LlamaCppUrl = "http://localhost:8080";
+
+            if (string.IsNullOrWhiteSpace(Ocr.ZaiModel))
+                Ocr.ZaiModel = "glm-ocr";
+
+            if (string.IsNullOrWhiteSpace(Ocr.HfModel))
+                Ocr.HfModel = "google/ocr";
+
+            if (string.IsNullOrWhiteSpace(Ocr.HfUrl))
+                Ocr.HfUrl = "https://api.huggingface.co/v1";
 
             if (HotkeyBindingHelper.GetDuplicateBindingErrors(
                 ClearHistoryHotkey,
@@ -235,15 +261,29 @@ namespace Suterusu.Configuration
 
             if (Ocr?.Enabled == true)
             {
-                if (Ocr.Provider == OcrProvider.HuggingFace)
-                {
-                    if (string.IsNullOrWhiteSpace(Ocr.HfToken))
-                        errors.Add("HuggingFace token required when OCR is enabled.");
-                }
-                else if (Ocr.Provider == OcrProvider.LlamaCpp)
+                if (Ocr.Provider == OcrProvider.LlamaCpp)
                 {
                     if (string.IsNullOrWhiteSpace(Ocr.LlamaCppUrl))
                         errors.Add("llama.cpp URL required when OCR is enabled.");
+                }
+                else if (Ocr.Provider == OcrProvider.Zai)
+                {
+                    if (string.IsNullOrWhiteSpace(Ocr.ZaiToken))
+                        errors.Add("Z.ai API token required when OCR is enabled.");
+                }
+                else if (Ocr.Provider == OcrProvider.Custom)
+                {
+                    if (string.IsNullOrWhiteSpace(Ocr.CustomUrl))
+                        errors.Add("Custom URL required when OCR is enabled.");
+                    if (string.IsNullOrWhiteSpace(Ocr.CustomApiKey))
+                        errors.Add("Custom API key required when OCR is enabled.");
+                    if (string.IsNullOrWhiteSpace(Ocr.CustomModel))
+                        errors.Add("Custom model required when OCR is enabled.");
+                }
+                else if (Ocr.Provider == OcrProvider.HuggingFace)
+                {
+                    if (string.IsNullOrWhiteSpace(Ocr.HfToken))
+                        errors.Add("HuggingFace token required when OCR is enabled.");
                 }
             }
 
