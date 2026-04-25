@@ -6,6 +6,8 @@ namespace Suterusu.Configuration
 {
     public class CliProxySettings
     {
+        public const string GeneratedModelEntryName = "ChatGPT (CLIProxyAPI)";
+
         public bool Enabled { get; set; }
         public bool AutoStart { get; set; }
         public string ExecutablePath { get; set; }
@@ -64,6 +66,31 @@ namespace Suterusu.Configuration
                 .TrimEnd('=')
                 .Replace('+', '-')
                 .Replace('/', '_');
+        }
+
+        public string GetApiBaseUrl()
+        {
+            return BuildBaseUrl(Host, Port) + "/v1";
+        }
+
+        public static string BuildBaseUrl(string host, int port)
+        {
+            string normalizedHost = FormatHostForUrl(host);
+            int normalizedPort = port <= 0 ? 8317 : port;
+            return $"http://{normalizedHost}:{normalizedPort}";
+        }
+
+        private static string FormatHostForUrl(string host)
+        {
+            string effectiveHost = string.IsNullOrWhiteSpace(host) ? "127.0.0.1" : host.Trim();
+            if (effectiveHost.Contains(":")
+                && !effectiveHost.StartsWith("[", StringComparison.Ordinal)
+                && !effectiveHost.EndsWith("]", StringComparison.Ordinal))
+            {
+                return $"[{effectiveHost}]";
+            }
+
+            return effectiveHost;
         }
     }
 }

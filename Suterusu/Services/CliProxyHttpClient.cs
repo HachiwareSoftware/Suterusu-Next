@@ -158,9 +158,8 @@ namespace Suterusu.Services
 
         private static string BuildUrl(CliProxySettings settings, string path)
         {
-            string host = string.IsNullOrWhiteSpace(settings.Host) ? "127.0.0.1" : settings.Host.Trim();
             string normalizedPath = path.StartsWith("/") ? path : "/" + path;
-            return $"http://{host}:{settings.Port}{normalizedPath}";
+            return CliProxySettings.BuildBaseUrl(settings.Host, settings.Port) + normalizedPath;
         }
 
         private static void ApplyAuthorization(CliProxySettings settings, HttpRequestMessage request)

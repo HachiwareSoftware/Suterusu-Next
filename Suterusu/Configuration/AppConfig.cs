@@ -231,8 +231,15 @@ namespace Suterusu.Configuration
                 .ToList();
 
             NormalizeCliProxySettings();
+            SyncCliProxyModelEntry();
 
             return this;
+        }
+
+        public bool HasConfiguredChatTarget()
+        {
+            return (ModelPriority != null && ModelPriority.Count > 0)
+                || CliProxy?.Enabled == true;
         }
 
         private void NormalizeCliProxySettings()
@@ -286,15 +293,44 @@ namespace Suterusu.Configuration
                 || host.Equals("::1", StringComparison.OrdinalIgnoreCase);
         }
 
+        private void SyncCliProxyModelEntry()
+        {
+            if (ModelPriority == null)
+                ModelPriority = new List<ModelEntry>();
+
+            ModelPriority = ModelPriority
+                .Where(entry => !IsGeneratedCliProxyModelEntry(entry))
+                .ToList();
+
+            if (CliProxy?.Enabled != true)
+                return;
+
+            ModelPriority.Insert(0, new ModelEntry
+            {
+                Name = CliProxySettings.GeneratedModelEntryName,
+                BaseUrl = CliProxy.GetApiBaseUrl(),
+                ApiKey = CliProxy.ApiKey,
+                Model = string.IsNullOrWhiteSpace(CliProxy.Model) ? "gpt-5.3-codex" : CliProxy.Model.Trim()
+            });
+        }
+
+        private static bool IsGeneratedCliProxyModelEntry(ModelEntry entry)
+        {
+            return entry != null
+                && !string.IsNullOrWhiteSpace(entry.Name)
+                && entry.Name.Equals(CliProxySettings.GeneratedModelEntryName, StringComparison.OrdinalIgnoreCase);
+        }
+
         public IReadOnlyList<string> Validate()
         {
             var errors = new List<string>();
 
-            if (ModelPriority == null || ModelPriority.Count == 0)
+            if (!HasConfiguredChatTarget())
             {
                 errors.Add("At least one entry must be added to the Model Priority list.");
             }
-            else
+
+            if (ModelPriority != null)
             {
                 for (int i = 0; i < ModelPriority.Count; i++)
                 {

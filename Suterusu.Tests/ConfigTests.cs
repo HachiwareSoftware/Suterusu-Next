@@ -405,6 +405,74 @@ namespace Suterusu.Tests
         }
 
         [Fact]
+        public void Normalize_AddsCliProxyModelEntry_WhenCliProxyEnabled()
+        {
+            var config = AppConfig.CreateDefault();
+            config.ModelPriority = new List<ModelEntry>();
+            config.CliProxy.Enabled = true;
+            config.CliProxy.Host = "127.0.0.1";
+            config.CliProxy.Port = 8317;
+            config.CliProxy.Model = "gpt-5.3-codex";
+            config.CliProxy.ApiKey = "secret";
+
+            config.Normalize();
+
+            var entry = Assert.Single(config.ModelPriority);
+            Assert.Equal(CliProxySettings.GeneratedModelEntryName, entry.Name);
+            Assert.Equal("http://127.0.0.1:8317/v1", entry.BaseUrl);
+            Assert.Equal("gpt-5.3-codex", entry.Model);
+            Assert.Equal("secret", entry.ApiKey);
+        }
+
+        [Fact]
+        public void Normalize_RemovesCliProxyModelEntry_WhenCliProxyDisabled()
+        {
+            var config = AppConfig.CreateDefault();
+            config.ModelPriority = new List<ModelEntry>
+            {
+                new ModelEntry
+                {
+                    Name = CliProxySettings.GeneratedModelEntryName,
+                    BaseUrl = "http://127.0.0.1:8317/v1",
+                    ApiKey = "secret",
+                    Model = "gpt-5.3-codex"
+                },
+                ValidEntry("https://api.openai.com/v1", "gpt-5.4-mini")
+            };
+
+            config.Normalize();
+
+            var entry = Assert.Single(config.ModelPriority);
+            Assert.Equal("Test", entry.Name);
+        }
+
+        [Fact]
+        public void Validate_AllowsCliProxyWithoutManualModelPriority()
+        {
+            var config = AppConfig.CreateDefault();
+            config.ModelPriority = new List<ModelEntry>();
+            config.CliProxy.Enabled = true;
+
+            var errors = config.Validate();
+
+            Assert.DoesNotContain(errors, error => error.Contains("Model Priority list"));
+        }
+
+        [Fact]
+        public void Normalize_UsesBracketedIpv6LoopbackInCliProxyModelEntry()
+        {
+            var config = AppConfig.CreateDefault();
+            config.ModelPriority = new List<ModelEntry>();
+            config.CliProxy.Enabled = true;
+            config.CliProxy.Host = "::1";
+
+            config.Normalize();
+
+            var entry = Assert.Single(config.ModelPriority);
+            Assert.Equal("http://[::1]:8317/v1", entry.BaseUrl);
+        }
+
+        [Fact]
         public void Validate_ReturnsError_WhenCliProxyHostIsNotLocal()
         {
             var config = AppConfig.CreateDefault();

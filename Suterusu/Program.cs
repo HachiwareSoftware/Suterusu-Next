@@ -92,14 +92,7 @@ namespace Suterusu
 
         private static bool HasConfiguredChatTarget(AppConfig config)
         {
-            if (config == null)
-                return false;
-
-            bool hasModelPriority = config.ModelPriority != null && config.ModelPriority.Count > 0;
-            if (hasModelPriority)
-                return true;
-
-            return config.CliProxy != null && config.CliProxy.Enabled;
+            return config != null && config.HasConfiguredChatTarget();
         }
     }
 }

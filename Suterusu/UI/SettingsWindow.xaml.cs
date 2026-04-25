@@ -195,9 +195,6 @@ namespace Suterusu.UI
         {
             AppConfig config = BuildConfigFromInputs();
 
-            if (config.CliProxy?.Enabled == true)
-                UpsertCliProxyModelEntry(config);
-
             var errors = config.Validate();
 
             if (errors.Count > 0)
@@ -300,8 +297,6 @@ namespace Suterusu.UI
                     UpdateCliProxyStatus("Model test failed.");
                     return;
                 }
-
-                UpsertCliProxyModelEntry(config);
 
                 var saveResult = _configManager.Save(config);
                 if (!saveResult.Success)
@@ -478,47 +473,7 @@ namespace Suterusu.UI
         private static string BuildCliProxyBaseUrl(CliProxySettings settings)
         {
             var effective = settings ?? CliProxySettings.CreateDefault();
-            string host = string.IsNullOrWhiteSpace(effective.Host) ? "127.0.0.1" : effective.Host.Trim();
-            int port = effective.Port <= 0 ? 8317 : effective.Port;
-            return $"http://{host}:{port}/v1";
-        }
-
-        private static void UpsertCliProxyModelEntry(AppConfig config)
-        {
-            if (config.ModelPriority == null)
-                config.ModelPriority = new List<ModelEntry>();
-
-            string baseUrl = BuildCliProxyBaseUrl(config.CliProxy).TrimEnd('/');
-            string model = string.IsNullOrWhiteSpace(config.CliProxy.Model)
-                ? "gpt-5.3-codex"
-                : config.CliProxy.Model.Trim();
-
-            var existing = config.ModelPriority.FirstOrDefault(entry =>
-                !string.IsNullOrWhiteSpace(entry.BaseUrl)
-                && entry.BaseUrl.TrimEnd('/').Equals(baseUrl, StringComparison.OrdinalIgnoreCase));
-
-            if (existing == null)
-            {
-                existing = config.ModelPriority.FirstOrDefault(entry =>
-                    !string.IsNullOrWhiteSpace(entry.Name)
-                    && entry.Name.Equals("ChatGPT (CLIProxyAPI)", StringComparison.OrdinalIgnoreCase));
-            }
-
-            if (existing == null)
-            {
-                existing = new ModelEntry();
-                config.ModelPriority.Insert(0, existing);
-            }
-            else
-            {
-                config.ModelPriority.Remove(existing);
-                config.ModelPriority.Insert(0, existing);
-            }
-
-            existing.Name = "ChatGPT (CLIProxyAPI)";
-            existing.BaseUrl = baseUrl;
-            existing.ApiKey = config.CliProxy.ApiKey;
-            existing.Model = model;
+            return effective.GetApiBaseUrl();
         }
 
         // ── Priority list — CRUD & ordering ──────────────────────────────────
