@@ -595,12 +595,6 @@ namespace Suterusu.UI
             if (PnlOcrPromptRow != null)
                 PnlOcrPromptRow.Visibility = isWindows ? Visibility.Collapsed : Visibility.Visible;
 
-            if (TxtWindowsOcrStatus != null)
-                TxtWindowsOcrStatus.Visibility = isWindows ? TxtWindowsOcrStatus.Visibility : Visibility.Collapsed;
-
-            if (BtnRefreshWindowsOcrLanguages != null)
-                BtnRefreshWindowsOcrLanguages.Visibility = isWindows ? Visibility.Visible : Visibility.Collapsed;
-
             UpdateWindowsOcrStatus();
         }
 
@@ -667,6 +661,13 @@ namespace Suterusu.UI
                 ?? string.Empty;
         }
 
+        private WindowsOcrAvailability GetSelectedWindowsOcrAvailability(string selectedTag)
+        {
+            return WindowsOcrClient.CreateAvailability(
+                selectedTag,
+                _windowsOcrAvailability.AvailableLanguageTags);
+        }
+
         private void UpdateWindowsOcrStatus()
         {
             if (TxtWindowsOcrStatus == null)
@@ -680,9 +681,7 @@ namespace Suterusu.UI
             }
 
             string selectedTag = GetSelectedWindowsOcrLanguage();
-            var availability = WindowsOcrClient.CreateAvailability(
-                selectedTag,
-                _windowsOcrAvailability.AvailableLanguageTags);
+            var availability = GetSelectedWindowsOcrAvailability(selectedTag);
             string statusText = availability.BuildSettingsStatusMessage();
 
             TxtWindowsOcrStatus.Text = statusText;
@@ -698,9 +697,7 @@ namespace Suterusu.UI
             if (config?.Ocr == null || config.Ocr.Provider != OcrProvider.WindowsOcr)
                 return null;
 
-            var availability = WindowsOcrClient.CreateAvailability(
-                config.Ocr.WindowsOcrLanguage,
-                _windowsOcrAvailability.AvailableLanguageTags);
+            var availability = GetSelectedWindowsOcrAvailability(config.Ocr.WindowsOcrLanguage);
 
             return availability.BuildConfigurationValidationError();
         }

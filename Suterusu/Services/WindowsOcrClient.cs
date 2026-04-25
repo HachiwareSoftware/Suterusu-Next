@@ -50,33 +50,20 @@ namespace Suterusu.Services
 
         public string BuildConfigurationValidationError()
         {
-            if (!HasAnyRecognizerLanguages)
-                return BuildNoRecognizerLanguagesMessage();
-
-            if (!UsesUserProfileLanguages && !IsRequestedLanguageAvailable)
-                return BuildMissingRequestedLanguageMessage();
-
-            return null;
+            return BuildBlockingMessage();
         }
 
         public string BuildEngineCreationFailureMessage()
         {
-            if (!HasAnyRecognizerLanguages)
-                return BuildNoRecognizerLanguagesMessage();
-
-            if (!UsesUserProfileLanguages && !IsRequestedLanguageAvailable)
-                return BuildMissingRequestedLanguageMessage();
-
-            return "Windows OCR could not create a recognizer for the current Windows language profile.";
+            return BuildBlockingMessage()
+                ?? "Windows OCR could not create a recognizer for the current Windows language profile.";
         }
 
         public string BuildSettingsStatusMessage()
         {
-            if (!HasAnyRecognizerLanguages)
-                return BuildNoRecognizerLanguagesMessage();
-
-            if (!UsesUserProfileLanguages && !IsRequestedLanguageAvailable)
-                return BuildMissingRequestedLanguageMessage();
+            string blockingMessage = BuildBlockingMessage();
+            if (blockingMessage != null)
+                return blockingMessage;
 
             string installedTags = string.Join(", ", _availableLanguageTags);
 
@@ -99,6 +86,17 @@ namespace Suterusu.Services
         private string BuildNoRecognizerLanguagesMessage()
         {
             return "Windows OCR recognizers are not installed. Install a Windows language and its Optical character recognition feature, then reopen or refresh this dialog.";
+        }
+
+        private string BuildBlockingMessage()
+        {
+            if (!HasAnyRecognizerLanguages)
+                return BuildNoRecognizerLanguagesMessage();
+
+            if (!UsesUserProfileLanguages && !IsRequestedLanguageAvailable)
+                return BuildMissingRequestedLanguageMessage();
+
+            return null;
         }
 
         private static string BuildInstallInstructions(string languageTag)
