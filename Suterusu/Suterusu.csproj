@@ -51,8 +51,12 @@
     <Reference Include="WindowsBase" />
     <Reference Include="System.Xaml" />
 
+
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.Windows.SDK.Contracts">
+      <Version>10.0.26100.4948</Version>
+    </PackageReference>
     <PackageReference Include="Newtonsoft.Json">
       <Version>13.0.3</Version>
     </PackageReference>
@@ -118,6 +122,7 @@
     <Compile Include="Services\LlamaCppOcrClient.cs" />
     <Compile Include="Services\OcrClientFactory.cs" />
     <Compile Include="Services\ZaiOcrClient.cs" />
+    <Compile Include="Services\WindowsOcrClient.cs" />
     <Compile Include="Services\ScreenCaptureService.cs" />
     <Compile Include="Services\ILogger.cs" />
     <Compile Include="Services\NLogLogger.cs" />

@@ -37,6 +37,11 @@ namespace Suterusu.Services
                         config.Ocr.HfToken,
                         config.Ocr.HfModel);
 
+                case OcrProvider.WindowsOcr:
+                    return new WindowsOcrClient(
+                        new NLogLogger("Suterusu.OCR.Windows"),
+                        config.Ocr.WindowsOcrLanguage);
+
                 default:
                     return null;
             }

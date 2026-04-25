@@ -499,5 +499,70 @@ namespace Suterusu.Tests
             Assert.Contains(errors, error => error.Contains("CLI proxy port"));
             Assert.Contains(errors, error => error.Contains("callback port"));
         }
+
+        // -----------------------------------------------------------------------
+        // Windows OCR — OcrSettings.WindowsOcrLanguage
+        // -----------------------------------------------------------------------
+
+        [Fact]
+        public void OcrSettings_CreateDefault_WindowsOcrLanguage_IsEmpty()
+        {
+            var ocr = OcrSettings.CreateDefault();
+            Assert.Equal(string.Empty, ocr.WindowsOcrLanguage);
+        }
+
+        [Fact]
+        public void Normalize_Ocr_NullWindowsOcrLanguage_BecomesEmpty()
+        {
+            var config = AppConfig.CreateDefault();
+            config.Ocr.WindowsOcrLanguage = null;
+            config.Normalize();
+            Assert.Equal(string.Empty, config.Ocr.WindowsOcrLanguage);
+        }
+
+        [Fact]
+        public void Normalize_Ocr_WhitespaceWindowsOcrLanguage_BecomesEmpty()
+        {
+            var config = AppConfig.CreateDefault();
+            config.Ocr.WindowsOcrLanguage = "   ";
+            config.Normalize();
+            Assert.Equal(string.Empty, config.Ocr.WindowsOcrLanguage);
+        }
+
+        [Fact]
+        public void Normalize_Ocr_LanguageTagWithPadding_IsTrimmed()
+        {
+            var config = AppConfig.CreateDefault();
+            config.Ocr.WindowsOcrLanguage = "  en-US  ";
+            config.Normalize();
+            Assert.Equal("en-US", config.Ocr.WindowsOcrLanguage);
+        }
+
+        [Fact]
+        public void Validate_WindowsOcr_Enabled_NoRequiredFieldErrors()
+        {
+            // WindowsOcr is local / offline — no URL or token required.
+            var config = new AppConfig
+            {
+                ModelPriority  = new List<ModelEntry> { ValidEntry() },
+                Ocr = new OcrSettings
+                {
+                    Enabled             = true,
+                    Provider            = OcrProvider.WindowsOcr,
+                    WindowsOcrLanguage  = "",
+                    Hotkey              = "Shift+F7",
+                    TimeoutMs           = 30000
+                },
+                ClearHistoryHotkey     = "F6",
+                SendClipboardHotkey    = "F7",
+                CopyLastResponseHotkey = "F8",
+                QuitApplicationHotkey  = "F12"
+            };
+
+            var errors = config.Validate();
+
+            Assert.DoesNotContain(errors, e =>
+                e.Contains("URL") || e.Contains("token") || e.Contains("API key") || e.Contains("model"));
+        }
     }
 }

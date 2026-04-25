@@ -5,6 +5,7 @@ namespace Suterusu.Configuration
         LlamaCpp,
         Zai,
         Custom,
-        HuggingFace
+        HuggingFace,
+        WindowsOcr
     }
 }
