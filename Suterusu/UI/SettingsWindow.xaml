@@ -280,12 +280,8 @@
                                 <Button x:Name="BtnOcrHotkey" Style="{StaticResource SecondaryButtonStyle}" Click="OnHotkeyButtonClick" HorizontalAlignment="Left" />
 
                                 <TextBlock Style="{StaticResource LabelStyle}" Text="Provider" />
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                                    <RadioButton x:Name="RbOcrLlamaCpp"   Content="llama.cpp"   Checked="OnOcrProviderChanged" />
-                                    <RadioButton x:Name="RbOcrZai"       Content="Z.ai"       Checked="OnOcrProviderChanged" />
-                                    <RadioButton x:Name="RbOcrCustom"    Content="Custom"     Checked="OnOcrProviderChanged" />
-                                    <RadioButton x:Name="RbOcrHuggingFace" Content="HuggingFace" Checked="OnOcrProviderChanged" />
-                                </StackPanel>
+                                <ComboBox x:Name="CboOcrProvider" HorizontalAlignment="Left" Width="160"
+                                          SelectionChanged="OnOcrProviderChanged" Margin="0,0,0,6" />
 
                                 <!-- llama.cpp settings -->
                                 <StackPanel x:Name="PnlLlamaCppSettings">
@@ -339,10 +335,34 @@
                                     <TextBlock Style="{StaticResource HintStyle}" Text="Default: google/ocr" />
                                 </StackPanel>
 
-                                <TextBlock Style="{StaticResource LabelStyle}" Text="Prompt" />
-                                <TextBox x:Name="TxtOcrPrompt" />
+                                <!-- Windows OCR settings -->
+                                <StackPanel x:Name="PnlWindowsOcrSettings" Visibility="Collapsed">
+                                    <TextBlock Style="{StaticResource LabelStyle}" Text="Recognition Language" />
+                                    <StackPanel Orientation="Horizontal">
+                                        <ComboBox x:Name="CboWindowsOcrLanguage" Width="280" HorizontalAlignment="Left" />
+                                        <Button x:Name="BtnRefreshWindowsOcrLanguages"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Content="Refresh"
+                                                Click="OnRefreshWindowsOcrLanguages"
+                                                Margin="8,0,0,0"
+                                                Padding="8,2" />
+                                    </StackPanel>
+                                    <TextBlock x:Name="TxtWindowsOcrStatus"
+                                               Style="{StaticResource HintStyle}"
+                                               Margin="0,4,0,0"
+                                               Visibility="Collapsed" />
+                                    <TextBlock Style="{StaticResource HintStyle}" Text="Local, offline. No API key required. Max region: 2000×2000 px." />
+                                    <TextBlock Style="{StaticResource HintStyle}" Margin="0,4,0,0"
+                                               Text="Add language packs via: Settings > Time &amp; Language > Language > Add a language" />
+                                </StackPanel>
 
-                                <CheckBox x:Name="ChkOcrUseClipboardPrompt" Content="Use clipboard text as prompt if not empty" Margin="0,6,0,0" />
+                                <!-- Prompt row (hidden when Windows OCR is active) -->
+                                <StackPanel x:Name="PnlOcrPromptRow">
+                                    <TextBlock Style="{StaticResource LabelStyle}" Text="Prompt" />
+                                    <TextBox x:Name="TxtOcrPrompt" />
+
+                                    <CheckBox x:Name="ChkOcrUseClipboardPrompt" Content="Use clipboard text as prompt if not empty" Margin="0,6,0,0" />
+                                </StackPanel>
 
                                 <TextBlock Style="{StaticResource LabelStyle}" Text="Timeout (ms)" />
                                 <TextBox x:Name="TxtOcrTimeoutMs" Width="100" HorizontalAlignment="Left" />

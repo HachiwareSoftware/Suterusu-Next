@@ -5,6 +5,7 @@ using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using Suterusu.Configuration;
 using Suterusu.Models;
 using Suterusu.Services;
@@ -18,6 +19,8 @@ namespace Suterusu.UI
         private readonly Action<AppConfig>     _configSaved;
         private readonly ILogger               _logger = new NLogLogger("Suterusu.Settings");
         private readonly Dictionary<GlobalHotkey, string> _hotkeyBindings = new Dictionary<GlobalHotkey, string>();
+        private WindowsOcrAvailability _windowsOcrAvailability =
+            WindowsOcrClient.CreateAvailability(string.Empty, Array.Empty<string>());
 
         // -2 = not in edit mode, -1 = adding new entry, >= 0 = editing existing entry
         private int  _editingEntryIndex    = -2;
@@ -36,6 +39,7 @@ namespace Suterusu.UI
             CboEntryPreset.ItemsSource = EndpointPreset.GetPresets();
             RbFlashWindow.IsChecked    = true;
             RbSequential.IsChecked     = true;
+            InitializeOcrProviderDropdown();
 
             LoadConfig(_configManager.Current);
         }
@@ -79,14 +83,17 @@ namespace Suterusu.UI
 
             // OCR settings
             var ocrProvider = config.Ocr?.Provider ?? OcrProvider.LlamaCpp;
-            if (ocrProvider == OcrProvider.LlamaCpp)
-                RbOcrLlamaCpp.IsChecked = true;
-            else if (ocrProvider == OcrProvider.Zai)
-                RbOcrZai.IsChecked = true;
-            else if (ocrProvider == OcrProvider.Custom)
-                RbOcrCustom.IsChecked = true;
-            else
-                RbOcrHuggingFace.IsChecked = true;
+            foreach (ComboBoxItem item in CboOcrProvider.Items)
+            {
+                if (item.Tag is OcrProvider p && p == ocrProvider)
+                {
+                    CboOcrProvider.SelectedItem = item;
+                    break;
+                }
+            }
+
+            // Windows OCR language dropdown
+            PopulateWindowsOcrLanguageDropdown(config.Ocr?.WindowsOcrLanguage ?? string.Empty);
 
             TxtOcrLlamaCppUrl.Text = config.Ocr?.LlamaCppUrl ?? "http://localhost:8080";
             CboLlamaCppModel.Text = config.Ocr?.LlamaCppModel ?? "ggml-org/GLM-OCR-GGUF";
@@ -153,7 +160,8 @@ namespace Suterusu.UI
                     HfUrl          = TxtOcrHfUrl.Text,
                     HfToken        = PwdOcrHfToken.Password,
                     HfModel        = TxtOcrHfModel.Text,
-                    UseClipboardPrompt = ChkOcrUseClipboardPrompt.IsChecked ?? false
+                    UseClipboardPrompt   = ChkOcrUseClipboardPrompt.IsChecked ?? false,
+                    WindowsOcrLanguage   = GetSelectedWindowsOcrLanguage()
                 }
             };
         }
@@ -161,7 +169,11 @@ namespace Suterusu.UI
         private bool TrySave()
         {
             AppConfig config = BuildConfigFromInputs();
-            var errors = config.Validate();
+            var errors = config.Validate().ToList();
+
+            string windowsOcrValidationError = GetWindowsOcrValidationError(config);
+            if (!string.IsNullOrEmpty(windowsOcrValidationError))
+                errors.Add(windowsOcrValidationError);
 
             if (errors.Count > 0)
             {
@@ -536,10 +548,19 @@ namespace Suterusu.UI
 
         private OcrProvider GetOcrProvider()
         {
-            if (RbOcrLlamaCpp.IsChecked == true) return OcrProvider.LlamaCpp;
-            if (RbOcrZai.IsChecked == true) return OcrProvider.Zai;
-            if (RbOcrCustom.IsChecked == true) return OcrProvider.Custom;
-            return OcrProvider.HuggingFace;
+            if (CboOcrProvider.SelectedItem is ComboBoxItem item && item.Tag is OcrProvider p)
+                return p;
+            return OcrProvider.LlamaCpp;
+        }
+
+        private void InitializeOcrProviderDropdown()
+        {
+            CboOcrProvider.Items.Add(new ComboBoxItem { Content = "llama.cpp",   Tag = OcrProvider.LlamaCpp    });
+            CboOcrProvider.Items.Add(new ComboBoxItem { Content = "Z.ai",        Tag = OcrProvider.Zai         });
+            CboOcrProvider.Items.Add(new ComboBoxItem { Content = "Custom",      Tag = OcrProvider.Custom      });
+            CboOcrProvider.Items.Add(new ComboBoxItem { Content = "HuggingFace", Tag = OcrProvider.HuggingFace });
+            CboOcrProvider.Items.Add(new ComboBoxItem { Content = "Windows OCR", Tag = OcrProvider.WindowsOcr  });
+            CboOcrProvider.SelectedIndex = 0;
         }
 
         private void OnOcrEnabledChanged(object sender, RoutedEventArgs e)
@@ -552,7 +573,7 @@ namespace Suterusu.UI
             TxtOcrTimeoutMs.IsEnabled = true;
         }
 
-        private void OnOcrProviderChanged(object sender, RoutedEventArgs e)
+        private void OnOcrProviderChanged(object sender, SelectionChangedEventArgs e)
         {
             UpdateOcrProviderVisibility(GetOcrProvider());
         }
@@ -562,10 +583,131 @@ namespace Suterusu.UI
             if (PnlLlamaCppSettings == null || PnlZaiSettings == null || PnlCustomSettings == null || PnlHfSettings == null)
                 return;
 
-            PnlLlamaCppSettings.Visibility = provider == OcrProvider.LlamaCpp ? Visibility.Visible : Visibility.Collapsed;
-            PnlZaiSettings.Visibility = provider == OcrProvider.Zai ? Visibility.Visible : Visibility.Collapsed;
-            PnlCustomSettings.Visibility = provider == OcrProvider.Custom ? Visibility.Visible : Visibility.Collapsed;
-            PnlHfSettings.Visibility = provider == OcrProvider.HuggingFace ? Visibility.Visible : Visibility.Collapsed;
+            bool isWindows = provider == OcrProvider.WindowsOcr;
+
+            PnlLlamaCppSettings.Visibility     = provider == OcrProvider.LlamaCpp    ? Visibility.Visible : Visibility.Collapsed;
+            PnlZaiSettings.Visibility          = provider == OcrProvider.Zai         ? Visibility.Visible : Visibility.Collapsed;
+            PnlCustomSettings.Visibility       = provider == OcrProvider.Custom       ? Visibility.Visible : Visibility.Collapsed;
+            PnlHfSettings.Visibility           = provider == OcrProvider.HuggingFace ? Visibility.Visible : Visibility.Collapsed;
+            PnlWindowsOcrSettings.Visibility   = isWindows                           ? Visibility.Visible : Visibility.Collapsed;
+
+            // Prompt is irrelevant for Windows OCR — hide it
+            if (PnlOcrPromptRow != null)
+                PnlOcrPromptRow.Visibility = isWindows ? Visibility.Collapsed : Visibility.Visible;
+
+            if (TxtWindowsOcrStatus != null)
+                TxtWindowsOcrStatus.Visibility = isWindows ? TxtWindowsOcrStatus.Visibility : Visibility.Collapsed;
+
+            if (BtnRefreshWindowsOcrLanguages != null)
+                BtnRefreshWindowsOcrLanguages.Visibility = isWindows ? Visibility.Visible : Visibility.Collapsed;
+
+            UpdateWindowsOcrStatus();
+        }
+
+        private void PopulateWindowsOcrLanguageDropdown(string selectedTag)
+        {
+            CboWindowsOcrLanguage.Items.Clear();
+
+            // First item: automatic selection
+            var autoItem = new ComboBoxItem { Content = "Auto (user profile)", Tag = string.Empty };
+            CboWindowsOcrLanguage.Items.Add(autoItem);
+
+            try
+            {
+                _windowsOcrAvailability = WindowsOcrClient.GetAvailability(selectedTag);
+                foreach (var tag in _windowsOcrAvailability.AvailableLanguageTags)
+                {
+                    string display = WindowsOcrClient.GetLanguageDisplayName(tag);
+                    CboWindowsOcrLanguage.Items.Add(new ComboBoxItem
+                    {
+                        Content = $"{display} \u2014 {tag}",
+                        Tag     = tag
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                _windowsOcrAvailability = WindowsOcrClient.CreateAvailability(selectedTag, Array.Empty<string>());
+                _logger.Warn($"Could not enumerate Windows OCR languages: {ex.Message}");
+                // Leave just the Auto item; user can still save with empty language (auto).
+            }
+
+            // Select the item matching selectedTag (or Auto if not found / empty)
+            ComboBoxItem toSelect = autoItem;
+            if (!string.IsNullOrEmpty(selectedTag))
+            {
+                foreach (ComboBoxItem item in CboWindowsOcrLanguage.Items)
+                {
+                    if (string.Equals(item.Tag as string, selectedTag, StringComparison.OrdinalIgnoreCase))
+                    {
+                        toSelect = item;
+                        break;
+                    }
+                }
+
+                if (toSelect == autoItem && !_windowsOcrAvailability.IsRequestedLanguageAvailable)
+                {
+                    toSelect = new ComboBoxItem
+                    {
+                        Content   = $"Missing from Windows: {selectedTag}",
+                        Tag       = selectedTag,
+                        FontStyle = FontStyles.Italic
+                    };
+                    CboWindowsOcrLanguage.Items.Add(toSelect);
+                }
+            }
+
+            CboWindowsOcrLanguage.SelectedItem = toSelect;
+            UpdateWindowsOcrStatus();
+        }
+
+        private string GetSelectedWindowsOcrLanguage()
+        {
+            return (CboWindowsOcrLanguage.SelectedItem as ComboBoxItem)?.Tag as string
+                ?? string.Empty;
+        }
+
+        private void UpdateWindowsOcrStatus()
+        {
+            if (TxtWindowsOcrStatus == null)
+                return;
+
+            if (GetOcrProvider() != OcrProvider.WindowsOcr)
+            {
+                TxtWindowsOcrStatus.Visibility = Visibility.Collapsed;
+                TxtWindowsOcrStatus.Text = string.Empty;
+                return;
+            }
+
+            string selectedTag = GetSelectedWindowsOcrLanguage();
+            var availability = WindowsOcrClient.CreateAvailability(
+                selectedTag,
+                _windowsOcrAvailability.AvailableLanguageTags);
+            string statusText = availability.BuildSettingsStatusMessage();
+
+            TxtWindowsOcrStatus.Text = statusText;
+            TxtWindowsOcrStatus.Foreground = (Brush)FindResource(
+                availability.HasSettingsWarning ? "ErrorBrush" : "MutedTextBrush");
+            TxtWindowsOcrStatus.Visibility = string.IsNullOrWhiteSpace(statusText)
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+        }
+
+        private string GetWindowsOcrValidationError(AppConfig config)
+        {
+            if (config?.Ocr == null || config.Ocr.Provider != OcrProvider.WindowsOcr)
+                return null;
+
+            var availability = WindowsOcrClient.CreateAvailability(
+                config.Ocr.WindowsOcrLanguage,
+                _windowsOcrAvailability.AvailableLanguageTags);
+
+            return availability.BuildConfigurationValidationError();
+        }
+
+        private void OnRefreshWindowsOcrLanguages(object sender, RoutedEventArgs e)
+        {
+            PopulateWindowsOcrLanguageDropdown(GetSelectedWindowsOcrLanguage());
         }
 
         private async void OnFetchLlamaCppModels(object sender, RoutedEventArgs e)

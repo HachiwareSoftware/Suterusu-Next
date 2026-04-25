@@ -33,6 +33,12 @@ namespace Suterusu.Configuration
         // Clipboard prompt option
         public bool UseClipboardPrompt { get; set; }
 
+        // Windows OCR settings (no API key / server needed)
+        /// <summary>
+        /// BCP-47 language tag for Windows OCR (e.g. "en-US"). Empty string = auto from user profile.
+        /// </summary>
+        public string WindowsOcrLanguage { get; set; }
+
         public static OcrSettings CreateDefault() => new OcrSettings
         {
             Enabled = false,
@@ -50,7 +56,8 @@ namespace Suterusu.Configuration
             HfToken = "",
             HfModel = "google/ocr",
             HfUrl = "https://api.huggingface.co/v1",
-            UseClipboardPrompt = false
+            UseClipboardPrompt = false,
+            WindowsOcrLanguage = ""
         };
     }
 
@@ -201,6 +208,11 @@ namespace Suterusu.Configuration
             if (string.IsNullOrWhiteSpace(Ocr.HfUrl))
                 Ocr.HfUrl = "https://api.huggingface.co/v1";
 
+            if (Ocr.WindowsOcrLanguage != null)
+                Ocr.WindowsOcrLanguage = Ocr.WindowsOcrLanguage.Trim();
+            else
+                Ocr.WindowsOcrLanguage = "";
+
             if (HotkeyBindingHelper.GetDuplicateBindingErrors(
                 ClearHistoryHotkey,
                 SendClipboardHotkey,
@@ -289,6 +301,7 @@ namespace Suterusu.Configuration
                     if (string.IsNullOrWhiteSpace(Ocr.HfToken))
                         errors.Add("HuggingFace token required when OCR is enabled.");
                 }
+                // OcrProvider.WindowsOcr: no required fields (local, offline)
             }
 
             foreach (string duplicateError in HotkeyBindingHelper.GetDuplicateBindingErrors(
