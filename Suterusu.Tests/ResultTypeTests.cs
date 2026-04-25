@@ -257,5 +257,49 @@ namespace Suterusu.Tests
             Assert.NotNull(result.Error);
             Assert.Equal("attempt error", result.Error);
         }
+
+        // -----------------------------------------------------------------------
+        // CliProxyResult
+        // -----------------------------------------------------------------------
+
+        [Fact]
+        public void CliProxyResult_Ok_HasSuccessTrue()
+        {
+            var result = CliProxyResult.Ok("ready");
+            Assert.True(result.Success);
+            Assert.Equal("ready", result.Message);
+            Assert.Null(result.Error);
+        }
+
+        [Fact]
+        public void CliProxyResult_Fail_HasError()
+        {
+            var result = CliProxyResult.Fail("failed");
+            Assert.False(result.Success);
+            Assert.Equal("failed", result.Error);
+            Assert.Null(result.Message);
+        }
+
+        // -----------------------------------------------------------------------
+        // CliProxyHealthResult
+        // -----------------------------------------------------------------------
+
+        [Fact]
+        public void CliProxyHealthResult_Ok_ExposesModelList()
+        {
+            var result = CliProxyHealthResult.Ok(new[] { "gpt-5.3-codex" });
+            Assert.True(result.Success);
+            Assert.Single(result.Models);
+            Assert.Null(result.Error);
+        }
+
+        [Fact]
+        public void CliProxyHealthResult_Fail_HasErrorAndEmptyModels()
+        {
+            var result = CliProxyHealthResult.Fail("unreachable");
+            Assert.False(result.Success);
+            Assert.Equal("unreachable", result.Error);
+            Assert.Empty(result.Models);
+        }
     }
 }

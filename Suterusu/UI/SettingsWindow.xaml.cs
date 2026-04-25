@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -17,12 +18,14 @@ namespace Suterusu.UI
         private readonly ClipboardAiController _controller;
         private readonly Action<AppConfig>     _configSaved;
         private readonly ILogger               _logger = new NLogLogger("Suterusu.Settings");
+        private readonly CliProxyProcessManager _cliProxyManager;
         private readonly Dictionary<GlobalHotkey, string> _hotkeyBindings = new Dictionary<GlobalHotkey, string>();
 
         // -2 = not in edit mode, -1 = adding new entry, >= 0 = editing existing entry
         private int  _editingEntryIndex    = -2;
         private bool _isApplyingEntryPreset;
         private bool _isSyncingEntryPreset;
+        private bool _cliProxyBusy;
         private GlobalHotkey? _capturingHotkey;
 
         public SettingsWindow(ConfigManager configManager, ClipboardAiController controller = null, Action<AppConfig> configSaved = null)
@@ -30,6 +33,7 @@ namespace Suterusu.UI
             _configManager = configManager;
             _controller    = controller;
             _configSaved   = configSaved;
+            _cliProxyManager = new CliProxyProcessManager(new NLogLogger("Suterusu.CliProxy"));
 
             InitializeComponent();
 
@@ -60,6 +64,15 @@ namespace Suterusu.UI
             TxtCircleDotBlinkDurationMs.Text  = config.CircleDotBlinkDurationMs.ToString();
             TxtMultiRequestTimeoutMs.Text     = config.MultiRequestTimeoutMs.ToString();
             TxtSystemPrompt.Text              = config.SystemPrompt ?? string.Empty;
+
+            var cliProxy = config.CliProxy ?? CliProxySettings.CreateDefault();
+            ChkCliProxyEnabled.IsChecked = cliProxy.Enabled;
+            ChkCliProxyAutoStart.IsChecked = cliProxy.AutoStart;
+            TxtCliProxyModel.Text = string.IsNullOrWhiteSpace(cliProxy.Model) ? "gpt-5.3-codex" : cliProxy.Model;
+            TxtCliProxyEndpoint.Text = BuildCliProxyBaseUrl(cliProxy);
+            UpdateCliProxyStatus(cliProxy.Enabled
+                ? "Configured. Use Start/Test or Connect ChatGPT & Use."
+                : "Disabled. Use Connect ChatGPT & Use to set up.");
 
             _hotkeyBindings[GlobalHotkey.ClearHistory] = HotkeyBindingHelper.NormalizeBindingName(
                 config.ClearHistoryHotkey,
@@ -119,6 +132,11 @@ namespace Suterusu.UI
             if (!int.TryParse(TxtHistoryLimit.Text, out historyLimit))
                 historyLimit = 10;
 
+            var currentCliProxy = _configManager.Current?.CliProxy ?? CliProxySettings.CreateDefault();
+            var cliProxyModel = string.IsNullOrWhiteSpace(TxtCliProxyModel.Text)
+                ? currentCliProxy.Model
+                : TxtCliProxyModel.Text.Trim();
+
             return new AppConfig
             {
                 ModelPriority            = priority,
@@ -154,6 +172,21 @@ namespace Suterusu.UI
                     HfToken        = PwdOcrHfToken.Password,
                     HfModel        = TxtOcrHfModel.Text,
                     UseClipboardPrompt = ChkOcrUseClipboardPrompt.IsChecked ?? false
+                },
+                CliProxy = new CliProxySettings
+                {
+                    Enabled = ChkCliProxyEnabled.IsChecked ?? false,
+                    AutoStart = ChkCliProxyAutoStart.IsChecked ?? true,
+                    ExecutablePath = currentCliProxy.ExecutablePath,
+                    RuntimeDirectory = currentCliProxy.RuntimeDirectory,
+                    ConfigPath = currentCliProxy.ConfigPath,
+                    AuthDirectory = currentCliProxy.AuthDirectory,
+                    Host = currentCliProxy.Host,
+                    Port = currentCliProxy.Port,
+                    ApiKey = currentCliProxy.ApiKey,
+                    ManagementKey = currentCliProxy.ManagementKey,
+                    Model = cliProxyModel,
+                    OAuthCallbackPort = currentCliProxy.OAuthCallbackPort
                 }
             };
         }
@@ -161,6 +194,10 @@ namespace Suterusu.UI
         private bool TrySave()
         {
             AppConfig config = BuildConfigFromInputs();
+
+            if (config.CliProxy?.Enabled == true)
+                UpsertCliProxyModelEntry(config);
+
             var errors = config.Validate();
 
             if (errors.Count > 0)
@@ -194,6 +231,294 @@ namespace Suterusu.UI
         private void OnCancel(object sender, RoutedEventArgs e)
         {
             Close();
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            _cliProxyManager.Dispose();
+            base.OnClosed(e);
+        }
+
+        // ── CLI proxy ─────────────────────────────────────────────────────────
+
+        private async void OnCliProxyConnectAndUse(object sender, RoutedEventArgs e)
+        {
+            if (_cliProxyBusy)
+                return;
+
+            HideValidation();
+            SetCliProxyBusy(true);
+            UpdateCliProxyStatus("Starting browser login...");
+
+            try
+            {
+                var config = BuildConfigFromInputs().Normalize();
+                config.CliProxy.Enabled = true;
+                config.CliProxy.AutoStart = ChkCliProxyAutoStart.IsChecked ?? true;
+
+                var loginResult = await _cliProxyManager
+                    .LoginWithBrowserOAuthAsync(config, CancellationToken.None)
+                    .ConfigureAwait(true);
+                if (!loginResult.Success)
+                {
+                    ShowValidation("CLI proxy login failed: " + loginResult.Error);
+                    UpdateCliProxyStatus("Login failed.");
+                    return;
+                }
+
+                UpdateCliProxyStatus("Login complete. Starting local proxy...");
+
+                var startResult = await _cliProxyManager
+                    .StartAsync(config, CancellationToken.None)
+                    .ConfigureAwait(true);
+                if (!startResult.Success)
+                {
+                    ShowValidation("Failed to start CLI proxy: " + startResult.Error);
+                    UpdateCliProxyStatus("Start failed.");
+                    return;
+                }
+
+                var healthResult = await _cliProxyManager
+                    .GetModelsAsync(config, CancellationToken.None)
+                    .ConfigureAwait(true);
+                if (healthResult.Success && healthResult.Models.Count > 0)
+                {
+                    if (!healthResult.Models.Contains(config.CliProxy.Model, StringComparer.OrdinalIgnoreCase))
+                        config.CliProxy.Model = healthResult.Models[0];
+
+                    TxtCliProxyModel.Text = config.CliProxy.Model;
+                }
+
+                UpdateCliProxyStatus("Testing model...");
+
+                var testResult = await _cliProxyManager
+                    .TestModelAsync(config, config.CliProxy.Model, CancellationToken.None)
+                    .ConfigureAwait(true);
+                if (!testResult.Success)
+                {
+                    ShowValidation("CLI proxy model test failed: " + testResult.Error);
+                    UpdateCliProxyStatus("Model test failed.");
+                    return;
+                }
+
+                UpsertCliProxyModelEntry(config);
+
+                var saveResult = _configManager.Save(config);
+                if (!saveResult.Success)
+                {
+                    ShowValidation(saveResult.Error);
+                    UpdateCliProxyStatus("Could not save configuration.");
+                    return;
+                }
+
+                _controller?.RefreshConfiguration();
+                _configSaved?.Invoke(_configManager.Current);
+                LoadConfig(_configManager.Current);
+                HideValidation();
+                UpdateCliProxyStatus($"Connected and saved. Using model '{config.CliProxy.Model}'.");
+            }
+            catch (Exception ex)
+            {
+                _logger.Error("CLI proxy connect flow failed.", ex);
+                ShowValidation("CLI proxy connect failed: " + ex.Message);
+                UpdateCliProxyStatus("Connect flow failed.");
+            }
+            finally
+            {
+                SetCliProxyBusy(false);
+            }
+        }
+
+        private async void OnCliProxyStart(object sender, RoutedEventArgs e)
+        {
+            await RunCliProxyOperationAsync(async config =>
+            {
+                config.CliProxy.Enabled = true;
+                var start = await _cliProxyManager.StartAsync(config, CancellationToken.None).ConfigureAwait(true);
+                if (!start.Success)
+                {
+                    ShowValidation("Failed to start CLI proxy: " + start.Error);
+                    UpdateCliProxyStatus("Start failed.");
+                    return;
+                }
+
+                HideValidation();
+                UpdateCliProxyStatus("CLI proxy is running.");
+            });
+        }
+
+        private void OnCliProxyStop(object sender, RoutedEventArgs e)
+        {
+            if (_cliProxyBusy)
+                return;
+
+            var stopResult = _cliProxyManager.Stop();
+            if (!stopResult.Success)
+            {
+                ShowValidation("Failed to stop CLI proxy: " + stopResult.Error);
+                UpdateCliProxyStatus("Stop failed.");
+                return;
+            }
+
+            HideValidation();
+            UpdateCliProxyStatus("CLI proxy stopped.");
+        }
+
+        private async void OnCliProxyTest(object sender, RoutedEventArgs e)
+        {
+            await RunCliProxyOperationAsync(async config =>
+            {
+                config.CliProxy.Enabled = true;
+
+                var start = await _cliProxyManager.StartAsync(config, CancellationToken.None).ConfigureAwait(true);
+                if (!start.Success)
+                {
+                    ShowValidation("Failed to start CLI proxy: " + start.Error);
+                    UpdateCliProxyStatus("Start failed.");
+                    return;
+                }
+
+                var test = await _cliProxyManager.TestModelAsync(config, config.CliProxy.Model, CancellationToken.None).ConfigureAwait(true);
+                if (!test.Success)
+                {
+                    ShowValidation("Model test failed: " + test.Error);
+                    UpdateCliProxyStatus("Model test failed.");
+                    return;
+                }
+
+                HideValidation();
+                UpdateCliProxyStatus($"Model '{config.CliProxy.Model}' test succeeded.");
+            });
+        }
+
+        private async void OnCliProxyRefreshModels(object sender, RoutedEventArgs e)
+        {
+            await RunCliProxyOperationAsync(async config =>
+            {
+                config.CliProxy.Enabled = true;
+
+                var start = await _cliProxyManager.StartAsync(config, CancellationToken.None).ConfigureAwait(true);
+                if (!start.Success)
+                {
+                    ShowValidation("Failed to start CLI proxy: " + start.Error);
+                    UpdateCliProxyStatus("Start failed.");
+                    return;
+                }
+
+                var health = await _cliProxyManager.GetModelsAsync(config, CancellationToken.None).ConfigureAwait(true);
+                if (!health.Success)
+                {
+                    ShowValidation("Could not fetch models: " + health.Error);
+                    UpdateCliProxyStatus("Model detection failed.");
+                    return;
+                }
+
+                if (health.Models.Count == 0)
+                {
+                    UpdateCliProxyStatus("Connected but no models were reported.");
+                    return;
+                }
+
+                if (!health.Models.Contains(config.CliProxy.Model, StringComparer.OrdinalIgnoreCase))
+                    config.CliProxy.Model = health.Models[0];
+
+                TxtCliProxyModel.Text = config.CliProxy.Model;
+                HideValidation();
+                UpdateCliProxyStatus($"Detected {health.Models.Count} model(s). Using '{config.CliProxy.Model}'.");
+            });
+        }
+
+        private async Task RunCliProxyOperationAsync(Func<AppConfig, Task> operation)
+        {
+            if (_cliProxyBusy)
+                return;
+
+            SetCliProxyBusy(true);
+            HideValidation();
+
+            try
+            {
+                var config = BuildConfigFromInputs().Normalize();
+                config.CliProxy.Enabled = ChkCliProxyEnabled.IsChecked ?? config.CliProxy.Enabled;
+                await operation(config).ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                _logger.Error("CLI proxy operation failed.", ex);
+                ShowValidation("CLI proxy operation failed: " + ex.Message);
+            }
+            finally
+            {
+                SetCliProxyBusy(false);
+            }
+        }
+
+        private void SetCliProxyBusy(bool busy)
+        {
+            _cliProxyBusy = busy;
+
+            BtnCliProxyConnect.IsEnabled = !busy;
+            BtnCliProxyStart.IsEnabled = !busy;
+            BtnCliProxyStop.IsEnabled = !busy;
+            BtnCliProxyTest.IsEnabled = !busy;
+            BtnCliProxyModels.IsEnabled = !busy;
+
+            BtnCliProxyConnect.Content = busy
+                ? "Working..."
+                : "Connect ChatGPT & Use";
+        }
+
+        private void UpdateCliProxyStatus(string message)
+        {
+            TxtCliProxyStatus.Text = string.IsNullOrWhiteSpace(message)
+                ? ""
+                : message;
+        }
+
+        private static string BuildCliProxyBaseUrl(CliProxySettings settings)
+        {
+            var effective = settings ?? CliProxySettings.CreateDefault();
+            string host = string.IsNullOrWhiteSpace(effective.Host) ? "127.0.0.1" : effective.Host.Trim();
+            int port = effective.Port <= 0 ? 8317 : effective.Port;
+            return $"http://{host}:{port}/v1";
+        }
+
+        private static void UpsertCliProxyModelEntry(AppConfig config)
+        {
+            if (config.ModelPriority == null)
+                config.ModelPriority = new List<ModelEntry>();
+
+            string baseUrl = BuildCliProxyBaseUrl(config.CliProxy).TrimEnd('/');
+            string model = string.IsNullOrWhiteSpace(config.CliProxy.Model)
+                ? "gpt-5.3-codex"
+                : config.CliProxy.Model.Trim();
+
+            var existing = config.ModelPriority.FirstOrDefault(entry =>
+                !string.IsNullOrWhiteSpace(entry.BaseUrl)
+                && entry.BaseUrl.TrimEnd('/').Equals(baseUrl, StringComparison.OrdinalIgnoreCase));
+
+            if (existing == null)
+            {
+                existing = config.ModelPriority.FirstOrDefault(entry =>
+                    !string.IsNullOrWhiteSpace(entry.Name)
+                    && entry.Name.Equals("ChatGPT (CLIProxyAPI)", StringComparison.OrdinalIgnoreCase));
+            }
+
+            if (existing == null)
+            {
+                existing = new ModelEntry();
+                config.ModelPriority.Insert(0, existing);
+            }
+            else
+            {
+                config.ModelPriority.Remove(existing);
+                config.ModelPriority.Insert(0, existing);
+            }
+
+            existing.Name = "ChatGPT (CLIProxyAPI)";
+            existing.BaseUrl = baseUrl;
+            existing.ApiKey = config.CliProxy.ApiKey;
+            existing.Model = model;
         }
 
         // ── Priority list — CRUD & ordering ──────────────────────────────────

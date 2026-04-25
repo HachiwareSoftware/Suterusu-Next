@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Windows.Forms;
 using Suterusu.Application;
 using Suterusu.Bootstrap;
@@ -33,15 +34,30 @@ namespace Suterusu
                 try
                 {
                     var configManager = new ConfigManager(new NLogLogger("Suterusu.Config"));
-                    configManager.LoadOrCreateDefault();
-                    new System.Windows.Application { ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown };
-                    new SettingsWindow(configManager).ShowDialog();
+                    ShowSettingsWindow(configManager);
                 }
                 catch (Exception ex)
                 {
                     new NLogLogger("Suterusu.Program").Error("Settings window failed.", ex);
                 }
                 return;
+            }
+
+            try
+            {
+                var startupConfigManager = new ConfigManager(new NLogLogger("Suterusu.Config"));
+                bool configAlreadyExists = File.Exists(startupConfigManager.ConfigFilePath);
+                var startupConfig = startupConfigManager.LoadOrCreateDefault();
+
+                if (!configAlreadyExists && !HasConfiguredChatTarget(startupConfig))
+                {
+                    new NLogLogger("Suterusu.Program").Info("First run detected with no chat target configured. Opening settings.");
+                    ShowSettingsWindow(startupConfigManager);
+                }
+            }
+            catch (Exception ex)
+            {
+                new NLogLogger("Suterusu.Program").Warn("Startup settings pre-check failed: " + ex.Message);
             }
 
             // Required for WinForms DPI awareness and message loop
@@ -65,6 +81,25 @@ namespace Suterusu
                         MessageBoxIcon.Error);
                 }
             }
+        }
+
+        private static void ShowSettingsWindow(ConfigManager configManager)
+        {
+            configManager.LoadOrCreateDefault();
+            new System.Windows.Application { ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown };
+            new SettingsWindow(configManager).ShowDialog();
+        }
+
+        private static bool HasConfiguredChatTarget(AppConfig config)
+        {
+            if (config == null)
+                return false;
+
+            bool hasModelPriority = config.ModelPriority != null && config.ModelPriority.Count > 0;
+            if (hasModelPriority)
+                return true;
+
+            return config.CliProxy != null && config.CliProxy.Enabled;
         }
     }
 }

@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using Suterusu.Models;
 
@@ -99,6 +101,8 @@ namespace Suterusu.Configuration
 
         public OcrSettings Ocr { get; set; }
 
+        public CliProxySettings CliProxy { get; set; }
+
         public static AppConfig CreateDefault()
         {
             return new AppConfig
@@ -118,7 +122,8 @@ namespace Suterusu.Configuration
                 SendClipboardHotkey      = HotkeyBindingHelper.GetDefaultBinding(GlobalHotkey.SendClipboard),
                 CopyLastResponseHotkey   = HotkeyBindingHelper.GetDefaultBinding(GlobalHotkey.CopyLastResponse),
                 QuitApplicationHotkey    = HotkeyBindingHelper.GetDefaultBinding(GlobalHotkey.QuitApplication),
-                Ocr                     = OcrSettings.CreateDefault()
+                Ocr                      = OcrSettings.CreateDefault(),
+                CliProxy                 = CliProxySettings.CreateDefault()
             };
         }
 
@@ -225,7 +230,60 @@ namespace Suterusu.Configuration
                 .Where(e => !string.IsNullOrWhiteSpace(e.BaseUrl) && !string.IsNullOrWhiteSpace(e.Model))
                 .ToList();
 
+            NormalizeCliProxySettings();
+
             return this;
+        }
+
+        private void NormalizeCliProxySettings()
+        {
+            if (CliProxy == null)
+                CliProxy = CliProxySettings.CreateDefault();
+
+            if (string.IsNullOrWhiteSpace(CliProxy.RuntimeDirectory))
+                CliProxy.RuntimeDirectory = CliProxySettings.GetDefaultRuntimeDirectory();
+
+            CliProxy.RuntimeDirectory = CliProxy.RuntimeDirectory.Trim();
+
+            if (string.IsNullOrWhiteSpace(CliProxy.ExecutablePath))
+                CliProxy.ExecutablePath = Path.Combine(CliProxy.RuntimeDirectory, "bin", "cli-proxy-api.exe");
+
+            if (string.IsNullOrWhiteSpace(CliProxy.ConfigPath))
+                CliProxy.ConfigPath = Path.Combine(CliProxy.RuntimeDirectory, "config.yaml");
+
+            if (string.IsNullOrWhiteSpace(CliProxy.AuthDirectory))
+                CliProxy.AuthDirectory = Path.Combine(CliProxy.RuntimeDirectory, "auths");
+
+            if (string.IsNullOrWhiteSpace(CliProxy.Host) || !IsLocalHost(CliProxy.Host))
+                CliProxy.Host = "127.0.0.1";
+
+            if (CliProxy.Port <= 0 || CliProxy.Port > 65535)
+                CliProxy.Port = 8317;
+
+            if (CliProxy.OAuthCallbackPort <= 0 || CliProxy.OAuthCallbackPort > 65535)
+                CliProxy.OAuthCallbackPort = 1455;
+
+            if (string.IsNullOrWhiteSpace(CliProxy.Model))
+                CliProxy.Model = "gpt-5.3-codex";
+
+            if (string.IsNullOrWhiteSpace(CliProxy.ApiKey))
+                CliProxy.ApiKey = CliProxySettings.GenerateSecret(24);
+
+            if (string.IsNullOrWhiteSpace(CliProxy.ManagementKey))
+                CliProxy.ManagementKey = CliProxySettings.GenerateSecret(24);
+
+            if (string.Equals(CliProxy.ApiKey, CliProxy.ManagementKey, StringComparison.Ordinal))
+                CliProxy.ManagementKey = CliProxySettings.GenerateSecret(24);
+        }
+
+        private static bool IsLocalHost(string host)
+        {
+            if (string.IsNullOrWhiteSpace(host))
+                return false;
+
+            return host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase)
+                || host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+                || host.Equals("::1", StringComparison.OrdinalIgnoreCase);
         }
 
         public IReadOnlyList<string> Validate()
@@ -289,6 +347,27 @@ namespace Suterusu.Configuration
                     if (string.IsNullOrWhiteSpace(Ocr.HfToken))
                         errors.Add("HuggingFace token required when OCR is enabled.");
                 }
+            }
+
+            if (CliProxy?.Enabled == true)
+            {
+                if (!IsLocalHost(CliProxy.Host))
+                    errors.Add("CLI proxy host must stay local (127.0.0.1, localhost, or ::1).");
+
+                if (CliProxy.Port <= 0 || CliProxy.Port > 65535)
+                    errors.Add("CLI proxy port must be between 1 and 65535.");
+
+                if (CliProxy.OAuthCallbackPort <= 0 || CliProxy.OAuthCallbackPort > 65535)
+                    errors.Add("CLI proxy OAuth callback port must be between 1 and 65535.");
+
+                if (string.IsNullOrWhiteSpace(CliProxy.Model))
+                    errors.Add("CLI proxy model is required when CLI proxy is enabled.");
+
+                if (string.IsNullOrWhiteSpace(CliProxy.ApiKey))
+                    errors.Add("CLI proxy API key is required when CLI proxy is enabled.");
+
+                if (string.IsNullOrWhiteSpace(CliProxy.ManagementKey))
+                    errors.Add("CLI proxy management key is required when CLI proxy is enabled.");
             }
 
             foreach (string duplicateError in HotkeyBindingHelper.GetDuplicateBindingErrors(

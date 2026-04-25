@@ -352,5 +352,84 @@ namespace Suterusu.Tests
 
             Assert.Contains(errors, error => error.Contains("Clear history hotkey"));
         }
+
+        // -----------------------------------------------------------------------
+        // CLI proxy settings
+        // -----------------------------------------------------------------------
+
+        [Fact]
+        public void CreateDefault_InitializesCliProxyDefaults()
+        {
+            var config = AppConfig.CreateDefault();
+
+            Assert.NotNull(config.CliProxy);
+            Assert.Equal("127.0.0.1", config.CliProxy.Host);
+            Assert.Equal(8317, config.CliProxy.Port);
+            Assert.False(string.IsNullOrWhiteSpace(config.CliProxy.ApiKey));
+            Assert.False(string.IsNullOrWhiteSpace(config.CliProxy.ManagementKey));
+            Assert.False(string.IsNullOrWhiteSpace(config.CliProxy.Model));
+        }
+
+        [Fact]
+        public void Normalize_InitializesAndClampsCliProxyValues()
+        {
+            var config = AppConfig.CreateDefault();
+            config.CliProxy = new CliProxySettings
+            {
+                Host = "0.0.0.0",
+                Port = 0,
+                OAuthCallbackPort = 70000,
+                ApiKey = "",
+                ManagementKey = ""
+            };
+
+            config.Normalize();
+
+            Assert.Equal("127.0.0.1", config.CliProxy.Host);
+            Assert.Equal(8317, config.CliProxy.Port);
+            Assert.Equal(1455, config.CliProxy.OAuthCallbackPort);
+            Assert.False(string.IsNullOrWhiteSpace(config.CliProxy.ApiKey));
+            Assert.False(string.IsNullOrWhiteSpace(config.CliProxy.ManagementKey));
+        }
+
+        [Fact]
+        public void Normalize_RegeneratesManagementKey_WhenKeysMatch()
+        {
+            var config = AppConfig.CreateDefault();
+            config.CliProxy.ApiKey = "same-key";
+            config.CliProxy.ManagementKey = "same-key";
+
+            config.Normalize();
+
+            Assert.NotEqual(config.CliProxy.ApiKey, config.CliProxy.ManagementKey);
+        }
+
+        [Fact]
+        public void Validate_ReturnsError_WhenCliProxyHostIsNotLocal()
+        {
+            var config = AppConfig.CreateDefault();
+            config.ModelPriority = new List<ModelEntry> { ValidEntry() };
+            config.CliProxy.Enabled = true;
+            config.CliProxy.Host = "0.0.0.0";
+
+            var errors = config.Validate();
+
+            Assert.Contains(errors, error => error.Contains("must stay local"));
+        }
+
+        [Fact]
+        public void Validate_ReturnsError_WhenCliProxyPortsAreInvalid()
+        {
+            var config = AppConfig.CreateDefault();
+            config.ModelPriority = new List<ModelEntry> { ValidEntry() };
+            config.CliProxy.Enabled = true;
+            config.CliProxy.Port = 70000;
+            config.CliProxy.OAuthCallbackPort = -1;
+
+            var errors = config.Validate();
+
+            Assert.Contains(errors, error => error.Contains("CLI proxy port"));
+            Assert.Contains(errors, error => error.Contains("callback port"));
+        }
     }
 }
