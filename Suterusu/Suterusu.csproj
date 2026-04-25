@@ -10,6 +10,7 @@
     <RootNamespace>Suterusu</RootNamespace>
     <AssemblyName>Suterusu</AssemblyName>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <AutomaticallyUseReferenceAssemblyPackages>true</AutomaticallyUseReferenceAssemblyPackages>
     <RuntimeIdentifiers>win</RuntimeIdentifiers>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
@@ -62,12 +63,17 @@
     <PackageReference Include="NLog">
       <Version>6.1.2</Version>
     </PackageReference>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net48">
+      <Version>1.0.3</Version>
+      <PrivateAssets>All</PrivateAssets>
+    </PackageReference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Application\HeadlessApplicationContext.cs" />
     <Compile Include="Bootstrap\ConsoleManager.cs" />
     <Compile Include="Bootstrap\StartupOptions.cs" />
     <Compile Include="Configuration\AppConfig.cs" />
+    <Compile Include="Configuration\CliProxySettings.cs" />
     <Compile Include="Configuration\ConfigManager.cs" />
     <Compile Include="Configuration\HotkeyBindingHelper.cs" />
     <Compile Include="Configuration\MultiRequestMode.cs" />
@@ -82,6 +88,8 @@
     <Compile Include="Models\ChatCompletionRequest.cs" />
     <Compile Include="Models\ChatCompletionResponse.cs" />
     <Compile Include="Models\ChatMessage.cs" />
+    <Compile Include="Models\CliProxyHealthResult.cs" />
+    <Compile Include="Models\CliProxyResult.cs" />
     <Compile Include="Models\ClipboardReadResult.cs" />
     <Compile Include="Models\ClipboardWriteResult.cs" />
     <Compile Include="Models\EndpointPreset.cs" />
@@ -102,6 +110,9 @@
     <Compile Include="Configuration\JsonSettings.cs" />
     <Compile Include="Services\AiClient.cs" />
     <Compile Include="Services\ChatHistory.cs" />
+    <Compile Include="Services\CliProxyConfigWriter.cs" />
+    <Compile Include="Services\CliProxyHttpClient.cs" />
+    <Compile Include="Services\CliProxyProcessManager.cs" />
     <Compile Include="Services\ClipboardAiController.cs" />
     <Compile Include="Services\ClipboardService.cs" />
     <Compile Include="Services\IOcrClient.cs" />

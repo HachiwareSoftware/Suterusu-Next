@@ -1,4 +1,6 @@
 using System;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using Suterusu.Bootstrap;
 using Suterusu.Configuration;
@@ -20,6 +22,7 @@ namespace Suterusu.Application
         private readonly ClipboardAiController  _controller;
         private readonly KeyboardHook           _keyboardHook;
         private readonly MouseHook               _mouseHook;
+        private readonly CliProxyProcessManager  _cliProxyManager;
         private          AppConfig              _config;
 
         public HeadlessApplicationContext(StartupOptions options)
@@ -29,6 +32,8 @@ namespace Suterusu.Application
             _configManager = new ConfigManager(new NLogLogger("Suterusu.Config"));
             _config = _configManager.LoadOrCreateDefault();
             _logger.Debug($"Config loaded: {_config.ModelPriority?.Count ?? 0} model priority entries");
+
+            _cliProxyManager = new CliProxyProcessManager(new NLogLogger("Suterusu.CliProxy"));
 
             _clipboardService    = new ClipboardService(new NLogLogger("Suterusu.Clipboard"));
             _aiClient            = new AiClient(new NLogLogger("Suterusu.AI"));
@@ -74,7 +79,33 @@ namespace Suterusu.Application
                 _logger.Error("Fatal: mouse hook installation failed.", ex);
             }
 
+            TryAutoStartCliProxyAsync();
             PrintStartupBanner(options.DebugEnabled);
+        }
+
+        private void TryAutoStartCliProxyAsync()
+        {
+            if (_config?.CliProxy?.Enabled != true)
+                return;
+
+            if (!_config.CliProxy.AutoStart)
+                return;
+
+            Task.Run(async () =>
+            {
+                try
+                {
+                    var startResult = await _cliProxyManager.StartAsync(_config, CancellationToken.None).ConfigureAwait(false);
+                    if (!startResult.Success)
+                        _logger.Warn("CLI proxy auto-start failed: " + startResult.Error);
+                    else
+                        _logger.Info("CLI proxy auto-start complete.");
+                }
+                catch (Exception ex)
+                {
+                    _logger.Error("CLI proxy auto-start crashed.", ex);
+                }
+            });
         }
 
         private void PrintStartupBanner(bool debugEnabled)
@@ -131,6 +162,10 @@ namespace Suterusu.Application
                 }
             }
             _logger.Info($"OCR: {ocrProvider} (model={ocrModel})");
+            if (_config?.CliProxy != null)
+            {
+                _logger.Info($"CLI proxy: {(_config.CliProxy.Enabled ? "enabled" : "disabled")} ({_config.CliProxy.Host}:{_config.CliProxy.Port}, model={_config.CliProxy.Model})");
+            }
             _logger.Info("");
         }
 
@@ -178,6 +213,7 @@ namespace Suterusu.Application
                 _keyboardHook?.Dispose();
                 _controller?.Dispose();
                 _aiClient?.Dispose();
+                _cliProxyManager?.Dispose();
                 (_notificationService as IDisposable)?.Dispose();
                 _logger.Info("Suterusu shutdown.");
             }
