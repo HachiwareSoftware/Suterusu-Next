@@ -44,11 +44,7 @@ namespace Suterusu.Configuration
 
         public static string GetDefaultRuntimeDirectory()
         {
-            string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            if (string.IsNullOrWhiteSpace(localAppData))
-                localAppData = AppDomain.CurrentDomain.BaseDirectory;
-
-            return Path.Combine(localAppData, "Suterusu", "CLIProxyAPI");
+            return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "cliproxy");
         }
 
         public static string GenerateSecret(int byteCount)

@@ -250,7 +250,6 @@
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
 
                                     <CheckBox x:Name="ChkCliProxyEnabled"
@@ -271,31 +270,21 @@
                                                Grid.Column="0"
                                                Style="{StaticResource LabelStyle}"
                                                Margin="0,0,12,4"
-                                               Text="Preferred model"
-                                               VerticalAlignment="Center" />
-                                    <TextBox x:Name="TxtCliProxyModel"
-                                             Grid.Row="2"
-                                             Grid.Column="1" />
-
-                                    <TextBlock Grid.Row="3"
-                                               Grid.Column="0"
-                                               Style="{StaticResource LabelStyle}"
-                                               Margin="0,0,12,4"
                                                Text="Local endpoint"
                                                VerticalAlignment="Center" />
                                     <TextBox x:Name="TxtCliProxyEndpoint"
-                                             Grid.Row="3"
+                                             Grid.Row="2"
                                              Grid.Column="1"
                                              IsReadOnly="True" />
 
-                                    <TextBlock Grid.Row="4"
+                                    <TextBlock Grid.Row="3"
                                                Grid.Column="0"
                                                Style="{StaticResource LabelStyle}"
                                                Margin="0,0,12,0"
                                                Text="Status"
                                                VerticalAlignment="Center" />
                                     <TextBlock x:Name="TxtCliProxyStatus"
-                                               Grid.Row="4"
+                                               Grid.Row="3"
                                                Grid.Column="1"
                                                Text="Not configured yet."
                                                TextWrapping="Wrap"
@@ -339,8 +328,16 @@
                                         <TextBox x:Name="TxtEntryBaseUrl" TextChanged="OnEntryBaseUrlChanged" />
                                         <TextBlock Style="{StaticResource LabelStyle}" Text="API Key" />
                                         <PasswordBox x:Name="PwdEntryApiKey" />
-                                        <TextBlock Style="{StaticResource LabelStyle}" Text="Model" />
-                                        <TextBox x:Name="TxtEntryModel" />
+                                         <StackPanel Orientation="Horizontal" Margin="0,4,0,2">
+                                             <TextBlock Style="{StaticResource LabelStyle}" Text="Model" VerticalAlignment="Center" Margin="0" />
+                                             <Button x:Name="BtnFetchEntryModels"
+                                                     Content="Fetch Models"
+                                                     Style="{StaticResource SecondaryButtonStyle}"
+                                                     Click="OnFetchEntryModels"
+                                                     Margin="8,0,0,0"
+                                                     Padding="8,2" />
+                                         </StackPanel>
+                                         <ComboBox x:Name="CboEntryModel" IsEditable="True" />
                                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                                             <Button Style="{StaticResource PrimaryButtonStyle}"   Content="Confirm" Click="OnConfirmEntry" />
                                             <Button Style="{StaticResource SecondaryButtonStyle}" Content="Discard" Click="OnDiscardEntry" Margin="6,0,0,0" />

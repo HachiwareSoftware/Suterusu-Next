@@ -87,7 +87,11 @@ namespace Suterusu.Services
 
             string versionFile = Path.Combine(runtimeDir, VersionFileName);
             if (!File.Exists(versionFile))
-                return null;
+            {
+                // Binary present but installed before version tracking started; report as installed.
+                string exePath = Path.Combine(runtimeDir, "bin", "cli-proxy-api.exe");
+                return File.Exists(exePath) ? "(installed)" : null;
+            }
 
             try
             {

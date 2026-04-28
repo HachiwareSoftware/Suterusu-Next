@@ -77,7 +77,6 @@ namespace Suterusu.UI
             var cliProxy = config.CliProxy ?? CliProxySettings.CreateDefault();
             ChkCliProxyEnabled.IsChecked = cliProxy.Enabled;
             ChkCliProxyAutoStart.IsChecked = cliProxy.AutoStart;
-            TxtCliProxyModel.Text = string.IsNullOrWhiteSpace(cliProxy.Model) ? "gpt-5.3-codex" : cliProxy.Model;
             TxtCliProxyEndpoint.Text = BuildCliProxyBaseUrl(cliProxy);
             UpdateCliProxyStatus(cliProxy.Enabled
                 ? "Configured. Use Start/Test or Connect ChatGPT & Use."
@@ -145,9 +144,6 @@ namespace Suterusu.UI
                 historyLimit = 10;
 
             var currentCliProxy = _configManager.Current?.CliProxy ?? CliProxySettings.CreateDefault();
-            var cliProxyModel = string.IsNullOrWhiteSpace(TxtCliProxyModel.Text)
-                ? currentCliProxy.Model
-                : TxtCliProxyModel.Text.Trim();
 
             return new AppConfig
             {
@@ -198,7 +194,7 @@ namespace Suterusu.UI
                     Port = currentCliProxy.Port,
                     ApiKey = currentCliProxy.ApiKey,
                     ManagementKey = currentCliProxy.ManagementKey,
-                    Model = cliProxyModel,
+                    Model = currentCliProxy.Model,
                     OAuthCallbackPort = currentCliProxy.OAuthCallbackPort
                 }
             };
@@ -300,8 +296,6 @@ namespace Suterusu.UI
                 {
                     if (!healthResult.Models.Contains(config.CliProxy.Model, StringComparer.OrdinalIgnoreCase))
                         config.CliProxy.Model = healthResult.Models[0];
-
-                    TxtCliProxyModel.Text = config.CliProxy.Model;
                 }
 
                 UpdateCliProxyStatus("Testing model...");
@@ -435,7 +429,6 @@ namespace Suterusu.UI
                 if (!health.Models.Contains(config.CliProxy.Model, StringComparer.OrdinalIgnoreCase))
                     config.CliProxy.Model = health.Models[0];
 
-                TxtCliProxyModel.Text = config.CliProxy.Model;
                 HideValidation();
                 UpdateCliProxyStatus($"Detected {health.Models.Count} model(s). Using '{config.CliProxy.Model}'.");
             });
@@ -519,10 +512,17 @@ namespace Suterusu.UI
             if (TxtCliProxyVersion == null)
                 return;
 
+            // "(installed)" is a sentinel: binary found but version.json absent
+            bool versionUnknown = installedVersion == "(installed)";
+
             if (installedVersion == null && latestVersion == null)
                 TxtCliProxyVersion.Text = "CLIProxyAPI: not installed";
             else if (installedVersion == null)
                 TxtCliProxyVersion.Text = $"CLIProxyAPI: not installed — {latestVersion} available";
+            else if (versionUnknown && latestVersion == null)
+                TxtCliProxyVersion.Text = "CLIProxyAPI: installed (version unknown)";
+            else if (versionUnknown)
+                TxtCliProxyVersion.Text = $"CLIProxyAPI: installed — latest: {latestVersion}";
             else if (latestVersion == null)
                 TxtCliProxyVersion.Text = $"CLIProxyAPI: {installedVersion} (could not check latest)";
             else if (string.Equals(installedVersion, latestVersion, StringComparison.OrdinalIgnoreCase))
@@ -672,7 +672,7 @@ namespace Suterusu.UI
             string name   = TxtEntryName.Text.Trim();
             string url    = TxtEntryBaseUrl.Text.Trim();
             string apiKey = PwdEntryApiKey.Password;
-            string model  = TxtEntryModel.Text.Trim();
+            string model  = CboEntryModel.Text.Trim();
 
             if (string.IsNullOrWhiteSpace(url))
             {
@@ -763,7 +763,8 @@ namespace Suterusu.UI
             TxtEntryName.Text    = string.Empty;
             TxtEntryBaseUrl.Text = string.Empty;
             PwdEntryApiKey.Clear();
-            TxtEntryModel.Text   = string.Empty;
+            CboEntryModel.Text   = string.Empty;
+            CboEntryModel.Items.Clear();
 
             _isSyncingEntryPreset = true;
             CboEntryPreset.SelectedIndex = -1;
@@ -775,7 +776,8 @@ namespace Suterusu.UI
             TxtEntryName.Text    = entry.Name    ?? string.Empty;
             TxtEntryBaseUrl.Text = entry.BaseUrl ?? string.Empty;
             PwdEntryApiKey.Password = entry.ApiKey ?? string.Empty;
-            TxtEntryModel.Text   = entry.Model   ?? string.Empty;
+            CboEntryModel.Items.Clear();
+            CboEntryModel.Text   = entry.Model   ?? string.Empty;
 
             // Try to match a preset from the URL
             var matchedPreset = CboEntryPreset.Items
@@ -1144,6 +1146,77 @@ namespace Suterusu.UI
             {
                 BtnFetchLlamaCppModels.IsEnabled = true;
                 BtnFetchLlamaCppModels.Content = "Fetch Models";
+            }
+        }
+
+        private async void OnFetchEntryModels(object sender, RoutedEventArgs e)
+        {
+            string rawUrl = TxtEntryBaseUrl.Text?.Trim();
+            if (string.IsNullOrWhiteSpace(rawUrl))
+            {
+                ShowValidation("Enter a Base URL first.");
+                return;
+            }
+
+            // Derive models endpoint: strip /chat/completions suffix, append /models
+            string modelsUrl = rawUrl.TrimEnd('/');
+            if (modelsUrl.EndsWith("/chat/completions", StringComparison.OrdinalIgnoreCase))
+                modelsUrl = modelsUrl.Substring(0, modelsUrl.Length - "/chat/completions".Length);
+            modelsUrl += "/models";
+
+            string apiKey = PwdEntryApiKey.Password;
+
+            BtnFetchEntryModels.IsEnabled = false;
+            BtnFetchEntryModels.Content   = "Fetching...";
+            HideValidation();
+
+            try
+            {
+                using (var client = new System.Net.Http.HttpClient())
+                {
+                    if (!string.IsNullOrWhiteSpace(apiKey))
+                        client.DefaultRequestHeaders.Authorization =
+                            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+
+                    using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10)))
+                    {
+                        var response = await client.GetAsync(modelsUrl, cts.Token).ConfigureAwait(true);
+                        response.EnsureSuccessStatusCode();
+
+                        string json = await response.Content.ReadAsStringAsync().ConfigureAwait(true);
+                        var obj  = Newtonsoft.Json.Linq.JObject.Parse(json);
+                        var data = obj["data"] as Newtonsoft.Json.Linq.JArray;
+
+                        CboEntryModel.Items.Clear();
+                        if (data != null)
+                        {
+                            foreach (var item in data)
+                            {
+                                string id = (string)item["id"];
+                                if (!string.IsNullOrWhiteSpace(id))
+                                    CboEntryModel.Items.Add(id);
+                            }
+                        }
+
+                        if (CboEntryModel.Items.Count > 0)
+                            CboEntryModel.SelectedIndex = 0;
+                        else
+                            ShowValidation("No models returned. Enter model name manually.");
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                ShowValidation("Model fetch timed out.");
+            }
+            catch (Exception ex)
+            {
+                ShowValidation($"Failed to fetch models: {ex.Message}");
+            }
+            finally
+            {
+                BtnFetchEntryModels.IsEnabled = true;
+                BtnFetchEntryModels.Content   = "Fetch Models";
             }
         }
     }
