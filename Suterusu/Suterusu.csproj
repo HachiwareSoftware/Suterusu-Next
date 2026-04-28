@@ -42,6 +42,7 @@
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Net.Http" />
+    <Reference Include="System.IO.Compression" />
     <!-- WinForms -->
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Drawing" />
@@ -89,6 +90,7 @@
     <Compile Include="Models\ChatCompletionResponse.cs" />
     <Compile Include="Models\ChatMessage.cs" />
     <Compile Include="Models\CliProxyHealthResult.cs" />
+    <Compile Include="Models\CliProxyReleaseInfo.cs" />
     <Compile Include="Models\CliProxyResult.cs" />
     <Compile Include="Models\ClipboardReadResult.cs" />
     <Compile Include="Models\ClipboardWriteResult.cs" />
@@ -113,6 +115,7 @@
     <Compile Include="Services\CliProxyConfigWriter.cs" />
     <Compile Include="Services\CliProxyHttpClient.cs" />
     <Compile Include="Services\CliProxyProcessManager.cs" />
+    <Compile Include="Services\CliProxyReleaseService.cs" />
     <Compile Include="Services\ClipboardAiController.cs" />
     <Compile Include="Services\ClipboardService.cs" />
     <Compile Include="Services\IOcrClient.cs" />

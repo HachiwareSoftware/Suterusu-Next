@@ -20,15 +20,17 @@ namespace Suterusu.UI
         private readonly Action<AppConfig>     _configSaved;
         private readonly ILogger               _logger = new NLogLogger("Suterusu.Settings");
         private readonly CliProxyProcessManager _cliProxyManager;
+        private readonly CancellationTokenSource _windowCts = new CancellationTokenSource();
         private readonly Dictionary<GlobalHotkey, string> _hotkeyBindings = new Dictionary<GlobalHotkey, string>();
         private WindowsOcrAvailability _windowsOcrAvailability =
             WindowsOcrClient.CreateAvailability(string.Empty, Array.Empty<string>());
 
         // -2 = not in edit mode, -1 = adding new entry, >= 0 = editing existing entry
-        private int  _editingEntryIndex    = -2;
-        private bool _isApplyingEntryPreset;
-        private bool _isSyncingEntryPreset;
-        private bool _cliProxyBusy;
+        private int    _editingEntryIndex      = -2;
+        private bool   _isApplyingEntryPreset;
+        private bool   _isSyncingEntryPreset;
+        private bool   _cliProxyBusy;
+        private string _lastKnownLatestVersion;
         private GlobalHotkey? _capturingHotkey;
 
         public SettingsWindow(ConfigManager configManager, ClipboardAiController controller = null, Action<AppConfig> configSaved = null)
@@ -46,6 +48,9 @@ namespace Suterusu.UI
             InitializeOcrProviderDropdown();
 
             LoadConfig(_configManager.Current);
+
+            // Kick off async version check — fire and forget, updates UI when done
+            _ = LoadCliProxyVersionStatusAsync();
         }
 
         // ── Load / Save ───────────────────────────────────────────────────────
@@ -243,6 +248,8 @@ namespace Suterusu.UI
 
         protected override void OnClosed(EventArgs e)
         {
+            _windowCts.Cancel();
+            _windowCts.Dispose();
             _cliProxyManager.Dispose();
             base.OnClosed(e);
         }
@@ -463,15 +470,128 @@ namespace Suterusu.UI
         {
             _cliProxyBusy = busy;
 
-            BtnCliProxyConnect.IsEnabled = !busy;
-            BtnCliProxyStart.IsEnabled = !busy;
-            BtnCliProxyStop.IsEnabled = !busy;
-            BtnCliProxyTest.IsEnabled = !busy;
-            BtnCliProxyModels.IsEnabled = !busy;
+            BtnCliProxyConnect.IsEnabled   = !busy;
+            BtnCliProxyStart.IsEnabled     = !busy;
+            BtnCliProxyStop.IsEnabled      = !busy;
+            BtnCliProxyTest.IsEnabled      = !busy;
+            BtnCliProxyModels.IsEnabled    = !busy;
+            BtnCheckForUpdates.IsEnabled   = !busy;
+            BtnUpdateCliProxy.IsEnabled    = !busy;
 
             BtnCliProxyConnect.Content = busy
                 ? "Working..."
                 : "Connect ChatGPT & Use";
+        }
+
+        // ── CLIProxyAPI version management ────────────────────────────────────
+
+        private async Task LoadCliProxyVersionStatusAsync()
+        {
+            if (TxtCliProxyVersion == null)
+                return;
+
+            TxtCliProxyVersion.Text = "CLIProxyAPI: checking...";
+
+            string installedVersion = _cliProxyManager.GetInstalledVersion(_configManager.Current);
+            string latestVersion    = null;
+
+            try
+            {
+                using (var checkCts = new CancellationTokenSource(TimeSpan.FromSeconds(10)))
+                using (var linked   = CancellationTokenSource.CreateLinkedTokenSource(_windowCts.Token, checkCts.Token))
+                {
+                    latestVersion = await _cliProxyManager.GetLatestVersionAsync(linked.Token)
+                        .ConfigureAwait(true);
+                    _lastKnownLatestVersion = latestVersion;
+                }
+            }
+            catch (OperationCanceledException) { /* window closing or timeout */ }
+            catch (Exception ex)
+            {
+                _logger.Warn($"Could not check CLIProxyAPI latest version: {ex.Message}");
+            }
+
+            UpdateCliProxyVersionStatus(installedVersion, latestVersion);
+        }
+
+        private void UpdateCliProxyVersionStatus(string installedVersion, string latestVersion)
+        {
+            if (TxtCliProxyVersion == null)
+                return;
+
+            if (installedVersion == null && latestVersion == null)
+                TxtCliProxyVersion.Text = "CLIProxyAPI: not installed";
+            else if (installedVersion == null)
+                TxtCliProxyVersion.Text = $"CLIProxyAPI: not installed — {latestVersion} available";
+            else if (latestVersion == null)
+                TxtCliProxyVersion.Text = $"CLIProxyAPI: {installedVersion} (could not check latest)";
+            else if (string.Equals(installedVersion, latestVersion, StringComparison.OrdinalIgnoreCase))
+                TxtCliProxyVersion.Text = $"CLIProxyAPI: {installedVersion} — up to date";
+            else
+                TxtCliProxyVersion.Text = $"CLIProxyAPI: {installedVersion} — {latestVersion} available";
+        }
+
+        private async void OnCheckForUpdates(object sender, RoutedEventArgs e)
+        {
+            if (_cliProxyBusy)
+                return;
+
+            BtnCheckForUpdates.IsEnabled = false;
+            try
+            {
+                await LoadCliProxyVersionStatusAsync().ConfigureAwait(true);
+            }
+            finally
+            {
+                BtnCheckForUpdates.IsEnabled = !_cliProxyBusy;
+            }
+        }
+
+        private async void OnUpdateCliProxy(object sender, RoutedEventArgs e)
+        {
+            if (_cliProxyBusy)
+                return;
+
+            SetCliProxyBusy(true);
+            HideValidation();
+
+            try
+            {
+                // Stop proxy if we own it
+                _cliProxyManager.Stop();
+
+                var config   = BuildConfigFromInputs().Normalize();
+                var progress = new Progress<string>(msg => UpdateCliProxyStatus(msg));
+
+                var result = await _cliProxyManager
+                    .UpdateCliProxyAsync(config, progress, _windowCts.Token)
+                    .ConfigureAwait(true);
+
+                if (!result.Success)
+                {
+                    ShowValidation("Update failed: " + result.Error);
+                    TxtCliProxyVersion.Text = "CLIProxyAPI: update failed.";
+                    return;
+                }
+
+                HideValidation();
+                UpdateCliProxyStatus("CLIProxyAPI installed/updated. You can now connect.");
+                string installed = _cliProxyManager.GetInstalledVersion(config);
+                UpdateCliProxyVersionStatus(installed, _lastKnownLatestVersion);
+            }
+            catch (OperationCanceledException)
+            {
+                TxtCliProxyVersion.Text = "CLIProxyAPI: update canceled.";
+            }
+            catch (Exception ex)
+            {
+                _logger.Error("CLIProxyAPI update failed.", ex);
+                ShowValidation("Update failed: " + ex.Message);
+            }
+            finally
+            {
+                SetCliProxyBusy(false);
+            }
         }
 
         private void UpdateCliProxyStatus(string message)

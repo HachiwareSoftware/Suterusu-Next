@@ -193,33 +193,52 @@
                                            Margin="0,0,0,8"
                                            Text="Connect through browser OAuth, start local proxy, test model, and save to Model Priority in one click." />
 
-                                <WrapPanel Margin="0,0,0,8">
-                                    <Button x:Name="BtnCliProxyConnect"
-                                            Style="{StaticResource PrimaryButtonStyle}"
-                                            Content="Connect ChatGPT &amp; Use"
-                                            Click="OnCliProxyConnectAndUse"
-                                            Margin="0,0,6,6" />
-                                    <Button x:Name="BtnCliProxyStart"
-                                            Style="{StaticResource SecondaryButtonStyle}"
-                                            Content="Start"
-                                            Click="OnCliProxyStart"
-                                            Margin="0,0,6,6" />
-                                    <Button x:Name="BtnCliProxyStop"
-                                            Style="{StaticResource SecondaryButtonStyle}"
-                                            Content="Stop"
-                                            Click="OnCliProxyStop"
-                                            Margin="0,0,6,6" />
-                                    <Button x:Name="BtnCliProxyTest"
-                                            Style="{StaticResource SecondaryButtonStyle}"
-                                            Content="Test"
-                                            Click="OnCliProxyTest"
-                                            Margin="0,0,6,6" />
-                                    <Button x:Name="BtnCliProxyModels"
-                                            Style="{StaticResource SecondaryButtonStyle}"
-                                            Content="Detect Models"
-                                            Click="OnCliProxyRefreshModels"
-                                            Margin="0,0,6,6" />
-                                </WrapPanel>
+                                 <WrapPanel Margin="0,0,0,6">
+                                     <Button x:Name="BtnCliProxyConnect"
+                                             Style="{StaticResource PrimaryButtonStyle}"
+                                             Content="Connect ChatGPT &amp; Use"
+                                             Click="OnCliProxyConnectAndUse"
+                                             Margin="0,0,6,6" />
+                                     <Button x:Name="BtnCliProxyStart"
+                                             Style="{StaticResource SecondaryButtonStyle}"
+                                             Content="Start"
+                                             Click="OnCliProxyStart"
+                                             Margin="0,0,6,6" />
+                                     <Button x:Name="BtnCliProxyStop"
+                                             Style="{StaticResource SecondaryButtonStyle}"
+                                             Content="Stop"
+                                             Click="OnCliProxyStop"
+                                             Margin="0,0,6,6" />
+                                     <Button x:Name="BtnCliProxyTest"
+                                             Style="{StaticResource SecondaryButtonStyle}"
+                                             Content="Test"
+                                             Click="OnCliProxyTest"
+                                             Margin="0,0,6,6" />
+                                     <Button x:Name="BtnCliProxyModels"
+                                             Style="{StaticResource SecondaryButtonStyle}"
+                                             Content="Detect Models"
+                                             Click="OnCliProxyRefreshModels"
+                                             Margin="0,0,6,6" />
+                                 </WrapPanel>
+
+                                 <!-- CLIProxyAPI version / update controls -->
+                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                     <TextBlock x:Name="TxtCliProxyVersion"
+                                                Style="{StaticResource HintStyle}"
+                                                VerticalAlignment="Center"
+                                                Margin="0,0,8,0" />
+                                     <Button x:Name="BtnCheckForUpdates"
+                                             Style="{StaticResource SecondaryButtonStyle}"
+                                             Content="Check for Updates"
+                                             Click="OnCheckForUpdates"
+                                             Padding="8,2"
+                                             Margin="0,0,6,0" />
+                                     <Button x:Name="BtnUpdateCliProxy"
+                                             Style="{StaticResource SecondaryButtonStyle}"
+                                             Content="Install / Update"
+                                             Click="OnUpdateCliProxy"
+                                             Padding="8,2" />
+                                 </StackPanel>
 
                                 <Grid>
                                     <Grid.ColumnDefinitions>
