@@ -139,6 +139,9 @@ namespace Suterusu.Services
 
         // ── Login ─────────────────────────────────────────────────────────────
 
+        private const int OAuthUrlTimeoutMs = 15000;
+        private const int LoginWaitTimeoutMs = 600000; // 10 min
+
         public async Task<CliProxyResult> LoginWithBrowserOAuthAsync(AppConfig config, CancellationToken cancellationToken)
         {
             if (config?.CliProxy == null)
@@ -162,34 +165,14 @@ namespace Suterusu.Services
             };
 
             var startInfo = CreateStartInfo(settings.ExecutablePath, args, true);
-            var urlTcs    = new TaskCompletionSource<string>();
-            var output    = new StringBuilder();
+            var output = new StringBuilder();
 
             try
             {
                 using (var process = new Process { StartInfo = startInfo })
                 {
-                    // Custom handlers: capture output AND watch for OAuth URL
-                    process.OutputDataReceived += (sender, e) =>
-                    {
-                        if (e.Data == null) return;
-                        lock (output) { output.AppendLine(e.Data); }
-                        _logger.Info($"[CLIProxyAPI] {e.Data}");
-                        if (TryExtractOAuthUrl(e.Data, out string found))
-                            urlTcs.TrySetResult(found);
-                    };
-                    process.ErrorDataReceived += (sender, e) =>
-                    {
-                        if (e.Data == null) return;
-                        lock (output) { output.AppendLine(e.Data); }
-                        _logger.Warn($"[CLIProxyAPI] {e.Data}");
-                        if (TryExtractOAuthUrl(e.Data, out string found))
-                            urlTcs.TrySetResult(found);
-                    };
-
-                    process.EnableRaisingEvents = true;
-                    // If the process exits before a URL is printed, unblock urlTcs so we don't hang
-                    process.Exited += (s, a) => urlTcs.TrySetCanceled();
+                    var urlTcs = new TaskCompletionSource<string>();
+                    AttachOAuthHandlers(process, output, urlTcs);
 
                     if (!process.Start())
                         return CliProxyResult.Fail("Failed to start CLI proxy login process.");
@@ -197,73 +180,17 @@ namespace Suterusu.Services
                     process.BeginOutputReadLine();
                     process.BeginErrorReadLine();
 
-                    _logger.Info("Waiting for CLIProxyAPI to output an OAuth URL...");
+                    string oauthUrl = await WaitForOAuthUrlAsync(process, urlTcs, output, cancellationToken);
+                    if (oauthUrl == null)
+                        return CliProxyResult.Fail(
+                            "CLIProxyAPI did not output an OAuth URL. Update CLIProxyAPI or complete login manually.");
 
-                    // Phase 1: wait up to 15 s for the URL
-                    string oauthUrl;
-                    using (var urlTimeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(15)))
-                    using (var combinedCts = CancellationTokenSource.CreateLinkedTokenSource(
-                        cancellationToken, urlTimeoutCts.Token))
-                    {
-                        combinedCts.Token.Register(() => urlTcs.TrySetCanceled());
+                    LaunchBrowser(oauthUrl);
 
-                        try
-                        {
-                            oauthUrl = await urlTcs.Task.ConfigureAwait(false);
-                        }
-                        catch (OperationCanceledException)
-                        {
-                            if (!process.HasExited)
-                                TryKillProcess(process);
-
-                            if (cancellationToken.IsCancellationRequested)
-                                return CliProxyResult.Fail("CLI proxy login canceled.");
-
-                            if (process.HasExited)
-                                return CliProxyResult.Fail(
-                                    BuildProcessFailureMessage(
-                                        "CLIProxyAPI exited without providing an OAuth URL", output));
-
-                            return CliProxyResult.Fail(
-                                "CLIProxyAPI did not output an OAuth URL within 15 seconds. " +
-                                "Update CLIProxyAPI or complete the login manually.");
-                        }
-                    }
-
-                    // Phase 2: open the browser
-                    _logger.Info($"Opening OAuth URL in browser: {oauthUrl}");
-                    try
-                    {
-                        Process.Start(new ProcessStartInfo(oauthUrl) { UseShellExecute = true });
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.Warn($"Could not open browser automatically ({ex.Message}). URL: {oauthUrl}");
-                    }
-
-                    _logger.Info("Waiting for ChatGPT browser OAuth flow to complete...");
-
-                    // Phase 3: wait for the login process to exit (up to 10 min)
-                    using (var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
-                    {
-                        timeoutCts.CancelAfter(TimeSpan.FromMinutes(10));
-                        try
-                        {
-                            int exitCode = await WaitForExitAsync(process, timeoutCts.Token).ConfigureAwait(false);
-                            if (exitCode != 0)
-                                return CliProxyResult.Fail(
-                                    BuildProcessFailureMessage("CLI proxy login failed", output));
-                        }
-                        catch (OperationCanceledException)
-                        {
-                            if (!process.HasExited)
-                                TryKillProcess(process);
-
-                            return cancellationToken.IsCancellationRequested
-                                ? CliProxyResult.Fail("CLI proxy login canceled.")
-                                : CliProxyResult.Fail("CLI proxy login timed out.");
-                        }
-                    }
+                    var exitResult = await WaitForLoginProcessAsync(process, cancellationToken);
+                    if (!exitResult.Success)
+                        return CliProxyResult.Fail(
+                            BuildProcessFailureMessage(exitResult.Error, output));
 
                     return CliProxyResult.Ok();
                 }
@@ -272,6 +199,103 @@ namespace Suterusu.Services
             {
                 _logger.Error("CLI proxy login process failed.", ex);
                 return CliProxyResult.Fail(ex.Message);
+            }
+        }
+
+        private void AttachOAuthHandlers(Process process, StringBuilder output, TaskCompletionSource<string> urlTcs)
+        {
+            process.OutputDataReceived += (sender, e) =>
+            {
+                if (e.Data == null) return;
+                lock (output) { output.AppendLine(e.Data); }
+                _logger.Info($"[CLIProxyAPI] {e.Data}");
+                if (TryExtractOAuthUrl(e.Data, out string found))
+                    urlTcs.TrySetResult(found);
+            };
+            process.ErrorDataReceived += (sender, e) =>
+            {
+                if (e.Data == null) return;
+                lock (output) { output.AppendLine(e.Data); }
+                _logger.Warn($"[CLIProxyAPI] {e.Data}");
+                if (TryExtractOAuthUrl(e.Data, out string found))
+                    urlTcs.TrySetResult(found);
+            };
+            process.EnableRaisingEvents = true;
+            process.Exited += (s, a) => urlTcs.TrySetCanceled();
+        }
+
+        private async Task<string> WaitForOAuthUrlAsync(
+            Process process, TaskCompletionSource<string> urlTcs, StringBuilder output,
+            CancellationToken cancellationToken)
+        {
+            _logger.Info("Waiting for CLIProxyAPI to output an OAuth URL...");
+
+            using (var urlTimeoutCts = new CancellationTokenSource(TimeSpan.FromMilliseconds(OAuthUrlTimeoutMs)))
+            using (var combinedCts = CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken, urlTimeoutCts.Token))
+            {
+                combinedCts.Token.Register(() => urlTcs.TrySetCanceled());
+
+                try
+                {
+                    return await urlTcs.Task.ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    if (!process.HasExited)
+                        TryKillProcess(process);
+
+                    if (cancellationToken.IsCancellationRequested)
+                        return null;
+
+                    if (process.HasExited)
+                    {
+                        _logger.Warn(BuildProcessFailureMessage(
+                            "CLIProxyAPI exited without an OAuth URL", output));
+                    }
+
+                    return null;
+                }
+            }
+        }
+
+        private static void LaunchBrowser(string url)
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                // Non-fatal: user can open the URL manually
+                System.Diagnostics.Debug.WriteLine($"Could not open browser: {ex.Message}");
+            }
+        }
+
+        private async Task<CliProxyResult> WaitForLoginProcessAsync(
+            Process process, CancellationToken cancellationToken)
+        {
+            _logger.Info("Waiting for ChatGPT browser OAuth flow to complete...");
+
+            using (var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+            {
+                timeoutCts.CancelAfter(TimeSpan.FromMilliseconds(LoginWaitTimeoutMs));
+                try
+                {
+                    int exitCode = await WaitForExitAsync(process, timeoutCts.Token).ConfigureAwait(false);
+                    if (exitCode != 0)
+                        return CliProxyResult.Fail("CLI proxy login exited with code " + exitCode);
+                    return CliProxyResult.Ok();
+                }
+                catch (OperationCanceledException)
+                {
+                    if (!process.HasExited)
+                        TryKillProcess(process);
+
+                    return cancellationToken.IsCancellationRequested
+                        ? CliProxyResult.Fail("CLI proxy login canceled.")
+                        : CliProxyResult.Fail("CLI proxy login timed out.");
+                }
             }
         }
 

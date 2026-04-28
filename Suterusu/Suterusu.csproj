@@ -133,6 +133,9 @@
       <DependentUpon>SettingsWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="UI\CliProxyUiOrchestrator.cs" />
+    <Compile Include="UI\ModelPriorityEditor.cs" />
+    <Compile Include="UI\OcrSettingsHelper.cs" />
   </ItemGroup>
   <ItemGroup>
     <Page Include="UI\SettingsWindow.xaml">

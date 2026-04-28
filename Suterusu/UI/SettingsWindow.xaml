@@ -328,9 +328,9 @@
                                         <TextBlock Style="{StaticResource LabelStyle}" Text="Display Name" />
                                         <TextBox x:Name="TxtEntryName" />
                                         <TextBlock Style="{StaticResource LabelStyle}" Text="Preset" />
-                                        <ComboBox x:Name="CboEntryPreset" DisplayMemberPath="Name" SelectionChanged="OnEntryPresetChanged" />
+                                        <ComboBox x:Name="CboEntryPreset" DisplayMemberPath="Name" />
                                         <TextBlock Style="{StaticResource LabelStyle}" Text="Base URL" />
-                                        <TextBox x:Name="TxtEntryBaseUrl" TextChanged="OnEntryBaseUrlChanged" />
+                                        <TextBox x:Name="TxtEntryBaseUrl" />
                                         <TextBlock Style="{StaticResource LabelStyle}" Text="API Key" />
                                         <PasswordBox x:Name="PwdEntryApiKey" />
                                          <StackPanel Orientation="Horizontal" Margin="0,4,0,2">
