@@ -259,18 +259,22 @@ namespace Suterusu.Configuration
             if (CliProxy == null)
                 CliProxy = CliProxySettings.CreateDefault();
 
-            if (string.IsNullOrWhiteSpace(CliProxy.RuntimeDirectory))
+            bool migrateLegacyRuntimeDirectory = CliProxySettings.IsLegacyRuntimeDirectory(CliProxy.RuntimeDirectory);
+
+            if (string.IsNullOrWhiteSpace(CliProxy.RuntimeDirectory) || migrateLegacyRuntimeDirectory)
                 CliProxy.RuntimeDirectory = CliProxySettings.GetDefaultRuntimeDirectory();
 
             CliProxy.RuntimeDirectory = CliProxy.RuntimeDirectory.Trim();
 
-            if (string.IsNullOrWhiteSpace(CliProxy.ExecutablePath))
-                CliProxy.ExecutablePath = Path.Combine(CliProxy.RuntimeDirectory, "bin", "cli-proxy-api.exe");
+            if (string.IsNullOrWhiteSpace(CliProxy.ExecutablePath)
+                || CliProxySettings.IsLegacyExecutablePath(CliProxy.ExecutablePath)
+                || migrateLegacyRuntimeDirectory)
+                CliProxy.ExecutablePath = CliProxySettings.GetExecutablePath(CliProxy.RuntimeDirectory);
 
-            if (string.IsNullOrWhiteSpace(CliProxy.ConfigPath))
+            if (string.IsNullOrWhiteSpace(CliProxy.ConfigPath) || migrateLegacyRuntimeDirectory)
                 CliProxy.ConfigPath = Path.Combine(CliProxy.RuntimeDirectory, "config.yaml");
 
-            if (string.IsNullOrWhiteSpace(CliProxy.AuthDirectory))
+            if (string.IsNullOrWhiteSpace(CliProxy.AuthDirectory) || migrateLegacyRuntimeDirectory)
                 CliProxy.AuthDirectory = Path.Combine(CliProxy.RuntimeDirectory, "auths");
 
             if (string.IsNullOrWhiteSpace(CliProxy.Host) || !IsLocalHost(CliProxy.Host))

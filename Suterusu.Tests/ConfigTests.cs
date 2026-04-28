@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.IO;
 using Xunit;
 using Suterusu.Configuration;
 using Suterusu.Models;
@@ -390,6 +391,25 @@ namespace Suterusu.Tests
             Assert.Equal(1455, config.CliProxy.OAuthCallbackPort);
             Assert.False(string.IsNullOrWhiteSpace(config.CliProxy.ApiKey));
             Assert.False(string.IsNullOrWhiteSpace(config.CliProxy.ManagementKey));
+        }
+
+        [Fact]
+        public void Normalize_MigratesLegacyCliProxyPathsToLocalRuntimeDirectory()
+        {
+            var config = AppConfig.CreateDefault();
+            string legacyRuntime = CliProxySettings.GetLegacyRuntimeDirectory();
+            config.CliProxy.RuntimeDirectory = legacyRuntime;
+            config.CliProxy.ExecutablePath = CliProxySettings.GetExecutablePath(legacyRuntime);
+            config.CliProxy.ConfigPath = Path.Combine(legacyRuntime, "config.yaml");
+            config.CliProxy.AuthDirectory = Path.Combine(legacyRuntime, "auths");
+
+            config.Normalize();
+
+            string expectedRuntime = CliProxySettings.GetDefaultRuntimeDirectory();
+            Assert.Equal(expectedRuntime, config.CliProxy.RuntimeDirectory);
+            Assert.Equal(CliProxySettings.GetExecutablePath(expectedRuntime), config.CliProxy.ExecutablePath);
+            Assert.Equal(Path.Combine(expectedRuntime, "config.yaml"), config.CliProxy.ConfigPath);
+            Assert.Equal(Path.Combine(expectedRuntime, "auths"), config.CliProxy.AuthDirectory);
         }
 
         [Fact]

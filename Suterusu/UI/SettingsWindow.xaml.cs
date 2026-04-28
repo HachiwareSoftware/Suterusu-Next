@@ -484,6 +484,7 @@ namespace Suterusu.UI
                 return;
 
             TxtCliProxyVersion.Text = "CLIProxyAPI: checking...";
+            UpdateCliProxyInstallPath();
 
             string installedVersion = _cliProxyManager.GetInstalledVersion(_configManager.Current);
             string latestVersion    = null;
@@ -505,6 +506,20 @@ namespace Suterusu.UI
             }
 
             UpdateCliProxyVersionStatus(installedVersion, latestVersion);
+            UpdateCliProxyInstallPath();
+        }
+
+        private void UpdateCliProxyInstallPath()
+        {
+            if (TxtCliProxyInstallPath == null)
+                return;
+
+            var settings = _configManager.Current?.CliProxy;
+            string runtimeDirectory = string.IsNullOrWhiteSpace(settings?.RuntimeDirectory)
+                ? CliProxySettings.GetDefaultRuntimeDirectory()
+                : settings.RuntimeDirectory;
+
+            TxtCliProxyInstallPath.Text = "Install path: " + runtimeDirectory;
         }
 
         private void UpdateCliProxyVersionStatus(string installedVersion, string latestVersion)

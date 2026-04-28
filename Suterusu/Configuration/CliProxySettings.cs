@@ -47,6 +47,39 @@ namespace Suterusu.Configuration
             return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "cliproxy");
         }
 
+        public static string GetLegacyRuntimeDirectory()
+        {
+            return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Suterusu",
+                "CLIProxyAPI");
+        }
+
+        public static string GetExecutablePath(string runtimeDirectory)
+        {
+            return Path.Combine(runtimeDirectory, "bin", "cli-proxy-api.exe");
+        }
+
+        public static bool IsLegacyRuntimeDirectory(string runtimeDirectory)
+        {
+            return PathsEqual(runtimeDirectory, GetLegacyRuntimeDirectory());
+        }
+
+        public static bool IsLegacyExecutablePath(string executablePath)
+        {
+            return PathsEqual(executablePath, GetExecutablePath(GetLegacyRuntimeDirectory()));
+        }
+
+        private static bool PathsEqual(string left, string right)
+        {
+            if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
+                return false;
+
+            string normalizedLeft = Path.GetFullPath(left.Trim()).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            string normalizedRight = Path.GetFullPath(right.Trim()).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            return string.Equals(normalizedLeft, normalizedRight, StringComparison.OrdinalIgnoreCase);
+        }
+
         public static string GenerateSecret(int byteCount)
         {
             if (byteCount <= 0)

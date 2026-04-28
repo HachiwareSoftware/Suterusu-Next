@@ -183,6 +183,29 @@ namespace Suterusu.Tests
         }
 
         [Fact]
+        public void GetInstalledVersion_ExeWithoutVersionFile_ReturnsInstalledSentinel()
+        {
+            string tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+            string binDir = Path.Combine(tempDir, "bin");
+            Directory.CreateDirectory(binDir);
+
+            try
+            {
+                File.WriteAllText(Path.Combine(binDir, "cli-proxy-api.exe"), "stub");
+                var settings = new CliProxySettings { RuntimeDirectory = tempDir };
+                var service = new CliProxyReleaseService(new NLogLogger("Suterusu.Tests.Release"));
+
+                string version = service.GetInstalledVersion(settings);
+
+                Assert.Equal("(installed)", version);
+            }
+            finally
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
+
+        [Fact]
         public void GetInstalledVersion_ValidVersionFile_ReturnsVersion()
         {
             string tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());

@@ -63,13 +63,55 @@ namespace Suterusu.Services
                 settings.RuntimeDirectory = CliProxySettings.GetDefaultRuntimeDirectory();
 
             if (string.IsNullOrWhiteSpace(settings.ExecutablePath))
-                settings.ExecutablePath = Path.Combine(settings.RuntimeDirectory, "bin", "cli-proxy-api.exe");
+                settings.ExecutablePath = CliProxySettings.GetExecutablePath(settings.RuntimeDirectory);
+
+            if (File.Exists(settings.ExecutablePath))
+                return CliProxyResult.Ok();
+
+            var migrationResult = TryMigrateLegacyInstall(settings);
+            if (!migrationResult.Success)
+                return migrationResult;
 
             if (File.Exists(settings.ExecutablePath))
                 return CliProxyResult.Ok();
 
             _logger.Info("CLIProxyAPI not found — downloading from GitHub...");
             return await _releaseService.InstallLatestAsync(settings, null, cancellationToken).ConfigureAwait(false);
+        }
+
+        private CliProxyResult TryMigrateLegacyInstall(CliProxySettings settings)
+        {
+            string legacyBinDir = Path.Combine(CliProxySettings.GetLegacyRuntimeDirectory(), "bin");
+            string legacyExe = CliProxySettings.GetExecutablePath(CliProxySettings.GetLegacyRuntimeDirectory());
+            if (!File.Exists(legacyExe))
+                return CliProxyResult.Ok();
+
+            try
+            {
+                string targetBinDir = Path.GetDirectoryName(settings.ExecutablePath);
+                Directory.CreateDirectory(targetBinDir);
+
+                foreach (string file in Directory.GetFiles(legacyBinDir))
+                {
+                    string targetPath = Path.Combine(targetBinDir, Path.GetFileName(file));
+                    File.Copy(file, targetPath, true);
+                }
+
+                string legacyVersionFile = Path.Combine(CliProxySettings.GetLegacyRuntimeDirectory(), CliProxyReleaseService.VersionFileName);
+                if (File.Exists(legacyVersionFile))
+                {
+                    Directory.CreateDirectory(settings.RuntimeDirectory);
+                    File.Copy(legacyVersionFile, Path.Combine(settings.RuntimeDirectory, CliProxyReleaseService.VersionFileName), true);
+                }
+
+                _logger.Info($"Migrated CLIProxyAPI from {legacyBinDir} to {targetBinDir}.");
+                return CliProxyResult.Ok();
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn($"Failed to migrate legacy CLIProxyAPI install: {ex.Message}");
+                return CliProxyResult.Fail("Failed to migrate existing CLIProxyAPI install: " + ex.Message);
+            }
         }
 
         // ── Version helpers (for Settings UI) ────────────────────────────────

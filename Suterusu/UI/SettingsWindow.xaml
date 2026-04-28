@@ -238,9 +238,14 @@
                                              Content="Install / Update"
                                              Click="OnUpdateCliProxy"
                                              Padding="8,2" />
-                                 </StackPanel>
+                                  </StackPanel>
 
-                                <Grid>
+                                  <TextBlock x:Name="TxtCliProxyInstallPath"
+                                             Style="{StaticResource HintStyle}"
+                                             Margin="0,0,0,8"
+                                             TextWrapping="Wrap" />
+
+                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="220" />
