@@ -1,0 +1,54 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ master ]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Setup NuGet
+      uses: NuGet/setup-nuget@v2
+
+    - name: Restore NuGet packages
+      run: nuget restore Suterusu-Next.sln
+
+    - name: Build
+      run: msbuild Suterusu-Next.sln /t:Build /p:Configuration=Release /v:minimal
+
+    - name: Run tests
+      run: dotnet test Suterusu.Tests\Suterusu.Tests.csproj --no-build --configuration Release
+
+    - name: Package artifacts
+      shell: pwsh
+      run: |
+        $version = "1.0.${{ github.run_number }}"
+        New-Item -ItemType Directory -Force -Path dist
+        Copy-Item Suterusu\bin\Release\Suterusu.exe dist\
+        Copy-Item Suterusu\bin\Release\*.dll dist\
+        Copy-Item Suterusu\bin\Release\Suterusu.exe.config dist\
+        if (Test-Path "Suterusu\bin\Release\NLog.config") { Copy-Item Suterusu\bin\Release\NLog.config dist\ }
+        Compress-Archive -Path dist\* -DestinationPath "Suterusu-v$version.zip"
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: v1.0.${{ github.run_number }}
+        name: Suterusu v1.0.${{ github.run_number }}
+        body: |
+          Automated build from commit ${{ github.sha }}
+
+          ## What's changed
+          ${{ github.event.head_commit.message }}
+        files: Suterusu-v1.0.${{ github.run_number }}.zip
+        generate_release_notes: true
