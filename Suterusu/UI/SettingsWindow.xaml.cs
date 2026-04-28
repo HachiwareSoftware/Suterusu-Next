@@ -734,8 +734,8 @@ namespace Suterusu.UI
             TxtEntryBaseUrl.Text = preset.BaseUrl;
             if (string.IsNullOrWhiteSpace(TxtEntryName.Text))
                 TxtEntryName.Text = preset.Name;
-            if (string.IsNullOrWhiteSpace(TxtEntryModel.Text) && !string.IsNullOrWhiteSpace(preset.DefaultModel))
-                TxtEntryModel.Text = preset.DefaultModel;
+            if (string.IsNullOrWhiteSpace(CboEntryModel.Text) && !string.IsNullOrWhiteSpace(preset.DefaultModel))
+                CboEntryModel.Text = preset.DefaultModel;
             _isApplyingEntryPreset = false;
         }
 
