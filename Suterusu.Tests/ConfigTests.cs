@@ -584,5 +584,83 @@ namespace Suterusu.Tests
             Assert.DoesNotContain(errors, e =>
                 e.Contains("URL") || e.Contains("token") || e.Contains("API key") || e.Contains("model"));
         }
+
+        // -----------------------------------------------------------------------
+        // CDP settings
+        // -----------------------------------------------------------------------
+
+        [Fact]
+        public void CdpSettings_CreateDefault_UsesSafeConnectOnlyDefaults()
+        {
+            var cdp = CdpSettings.CreateDefault();
+
+            Assert.False(cdp.Enabled);
+            Assert.Equal(27245, cdp.Port);
+            Assert.Equal(string.Empty, cdp.UrlPattern);
+            Assert.Equal("js/events", cdp.StartupScriptsDirectory);
+            Assert.Equal(5000, cdp.RetryIntervalMs);
+            Assert.Equal(2000, cdp.ConnectTimeoutMs);
+            Assert.True(cdp.InjectOnStartup);
+        }
+
+        [Fact]
+        public void Normalize_Cdp_NullSettings_CreatesDefault()
+        {
+            var config = AppConfig.CreateDefault();
+            config.Cdp = null;
+
+            config.Normalize();
+
+            Assert.NotNull(config.Cdp);
+            Assert.Equal(27245, config.Cdp.Port);
+        }
+
+        [Fact]
+        public void Normalize_Cdp_ClampsInvalidValues()
+        {
+            var config = AppConfig.CreateDefault();
+            config.Cdp = new CdpSettings
+            {
+                Enabled = true,
+                Port = 70000,
+                UrlPattern = "  chatgpt\\.com  ",
+                StartupScriptsDirectory = "   ",
+                RetryIntervalMs = 0,
+                ConnectTimeoutMs = 0,
+                InjectOnStartup = true
+            };
+
+            config.Normalize();
+
+            Assert.Equal(27245, config.Cdp.Port);
+            Assert.Equal("chatgpt\\.com", config.Cdp.UrlPattern);
+            Assert.Equal("js/events", config.Cdp.StartupScriptsDirectory);
+            Assert.Equal(1, config.Cdp.RetryIntervalMs);
+            Assert.Equal(1, config.Cdp.ConnectTimeoutMs);
+        }
+
+        [Fact]
+        public void Normalize_Cdp_MigratesLegacyStartupDirectory()
+        {
+            var config = AppConfig.CreateDefault();
+            config.Cdp.StartupScriptsDirectory = "js/startup";
+
+            config.Normalize();
+
+            Assert.Equal("js/events", config.Cdp.StartupScriptsDirectory);
+        }
+
+        [Fact]
+        public void Normalize_Cdp_ClampsHighRetryAndTimeout()
+        {
+            var config = AppConfig.CreateDefault();
+            config.Cdp.RetryIntervalMs = 200000;
+            config.Cdp.ConnectTimeoutMs = 200000;
+
+            config.Normalize();
+
+            Assert.Equal(177013, config.Cdp.RetryIntervalMs);
+            Assert.Equal(177013, config.Cdp.ConnectTimeoutMs);
+        }
     }
 }

@@ -41,6 +41,12 @@ namespace Suterusu.Configuration
         /// </summary>
         public string WindowsOcrLanguage { get; set; }
 
+        public int MaxTokens { get; set; }
+
+        public bool DownscaleImage { get; set; }
+
+        public int MaxImageDimension { get; set; }
+
         public static OcrSettings CreateDefault() => new OcrSettings
         {
             Enabled = false,
@@ -59,7 +65,38 @@ namespace Suterusu.Configuration
             HfModel = "google/ocr",
             HfUrl = "https://api.huggingface.co/v1",
             UseClipboardPrompt = false,
-            WindowsOcrLanguage = ""
+            WindowsOcrLanguage = "",
+            MaxTokens = 4096,
+            DownscaleImage = true,
+            MaxImageDimension = 1024
+        };
+    }
+
+    public class CdpSettings
+    {
+        public bool Enabled { get; set; }
+
+        public int Port { get; set; }
+
+        public string UrlPattern { get; set; }
+
+        public string StartupScriptsDirectory { get; set; }
+
+        public int RetryIntervalMs { get; set; }
+
+        public int ConnectTimeoutMs { get; set; }
+
+        public bool InjectOnStartup { get; set; }
+
+        public static CdpSettings CreateDefault() => new CdpSettings
+        {
+            Enabled = false,
+            Port = 27245,
+            UrlPattern = "",
+            StartupScriptsDirectory = "js/events",
+            RetryIntervalMs = 5000,
+            ConnectTimeoutMs = 2000,
+            InjectOnStartup = true
         };
     }
 
@@ -110,6 +147,8 @@ namespace Suterusu.Configuration
 
         public CliProxySettings CliProxy { get; set; }
 
+        public CdpSettings Cdp { get; set; }
+
         public static AppConfig CreateDefault()
         {
             return new AppConfig
@@ -130,7 +169,8 @@ namespace Suterusu.Configuration
                 CopyLastResponseHotkey   = HotkeyBindingHelper.GetDefaultBinding(GlobalHotkey.CopyLastResponse),
                 QuitApplicationHotkey    = HotkeyBindingHelper.GetDefaultBinding(GlobalHotkey.QuitApplication),
                 Ocr                      = OcrSettings.CreateDefault(),
-                CliProxy                 = CliProxySettings.CreateDefault()
+                CliProxy                 = CliProxySettings.CreateDefault(),
+                Cdp                      = CdpSettings.CreateDefault()
             };
         }
 
@@ -198,6 +238,18 @@ namespace Suterusu.Configuration
             if (Ocr.TimeoutMs > 120000)
                 Ocr.TimeoutMs = 120000;
 
+            if (Ocr.MaxTokens < 1)
+                Ocr.MaxTokens = 4096;
+
+            if (Ocr.MaxTokens > 65536)
+                Ocr.MaxTokens = 65536;
+
+            if (Ocr.MaxImageDimension < 64)
+                Ocr.MaxImageDimension = 1024;
+
+            if (Ocr.MaxImageDimension > 4096)
+                Ocr.MaxImageDimension = 4096;
+
             if (string.IsNullOrWhiteSpace(Ocr.LlamaCppModel))
                 Ocr.LlamaCppModel = "ggml-org/GLM-OCR-GGUF";
 
@@ -243,9 +295,44 @@ namespace Suterusu.Configuration
                 .ToList();
 
             NormalizeCliProxySettings();
+            NormalizeCdpSettings();
             SyncCliProxyModelEntry();
 
             return this;
+        }
+
+        private void NormalizeCdpSettings()
+        {
+            if (Cdp == null)
+                Cdp = CdpSettings.CreateDefault();
+
+            if (Cdp.Port <= 0 || Cdp.Port > 65535)
+                Cdp.Port = 27245;
+
+            if (Cdp.UrlPattern == null)
+                Cdp.UrlPattern = "";
+            else
+                Cdp.UrlPattern = Cdp.UrlPattern.Trim();
+
+            if (string.IsNullOrWhiteSpace(Cdp.StartupScriptsDirectory))
+                Cdp.StartupScriptsDirectory = "js/events";
+            else
+                Cdp.StartupScriptsDirectory = Cdp.StartupScriptsDirectory.Trim();
+
+            if (string.Equals(Cdp.StartupScriptsDirectory, "js/startup", StringComparison.OrdinalIgnoreCase))
+                Cdp.StartupScriptsDirectory = "js/events";
+
+            if (Cdp.RetryIntervalMs < 1)
+                Cdp.RetryIntervalMs = 1;
+
+            if (Cdp.RetryIntervalMs > 177013)
+                Cdp.RetryIntervalMs = 177013;
+
+            if (Cdp.ConnectTimeoutMs < 1)
+                Cdp.ConnectTimeoutMs = 1;
+
+            if (Cdp.ConnectTimeoutMs > 177013)
+                Cdp.ConnectTimeoutMs = 177013;
         }
 
         public bool HasConfiguredChatTarget()
@@ -421,6 +508,18 @@ namespace Suterusu.Configuration
 
                 if (string.IsNullOrWhiteSpace(CliProxy.ManagementKey))
                     errors.Add("CLI proxy management key is required when CLI proxy is enabled.");
+            }
+
+            if (Cdp?.Enabled == true)
+            {
+                if (Cdp.Port <= 0 || Cdp.Port > 65535)
+                    errors.Add("CDP port must be between 1 and 65535.");
+
+                if (Cdp.RetryIntervalMs < 1 || Cdp.RetryIntervalMs > 177013)
+                    errors.Add("CDP retry interval must be between 1 and 177013 ms.");
+
+                if (Cdp.ConnectTimeoutMs < 1 || Cdp.ConnectTimeoutMs > 177013)
+                    errors.Add("CDP connect timeout must be between 1 and 177013 ms.");
             }
 
             foreach (string duplicateError in HotkeyBindingHelper.GetDuplicateBindingErrors(

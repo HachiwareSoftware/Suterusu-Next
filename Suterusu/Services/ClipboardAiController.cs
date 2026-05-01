@@ -186,6 +186,16 @@ namespace Suterusu.Services
             _logger.Info($"Screen captured ({imageData.Length} bytes).");
 
             AppConfig config = _configManager.Current;
+            if (config.Ocr?.DownscaleImage == true)
+            {
+                int maxDim = config.Ocr.MaxImageDimension > 0 ? config.Ocr.MaxImageDimension : 1024;
+                byte[] downscaled = ImageResizer.Downscale(imageData, maxDim);
+                if (downscaled != null && downscaled.Length < imageData.Length)
+                {
+                    _logger.Debug($"Image downscaled: {imageData.Length} → {downscaled.Length} bytes (max {maxDim}px)");
+                    imageData = downscaled;
+                }
+            }
             string prompt = config.Ocr?.Prompt;
 
             if (config.Ocr?.UseClipboardPrompt == true)

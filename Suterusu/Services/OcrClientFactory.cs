@@ -15,7 +15,8 @@ namespace Suterusu.Services
                     return new LlamaCppOcrClient(
                         logger,
                         config.Ocr.LlamaCppUrl,
-                        config.Ocr.LlamaCppModel);
+                        config.Ocr.LlamaCppModel,
+                        config.Ocr.MaxTokens);
 
                 case OcrProvider.Zai:
                     return new ZaiOcrClient(
@@ -28,7 +29,8 @@ namespace Suterusu.Services
                         logger,
                         config.Ocr.CustomUrl,
                         config.Ocr.CustomApiKey,
-                        config.Ocr.CustomModel);
+                        config.Ocr.CustomModel,
+                        config.Ocr.MaxTokens);
 
                 case OcrProvider.HuggingFace:
                     return new HuggingFaceOcrClient(

@@ -42,6 +42,8 @@
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Net.Http" />
+    <Reference Include="System.Net.WebSockets" />
+    <Reference Include="System.Net.WebSockets.Client" />
     <Reference Include="System.IO.Compression" />
     <!-- WinForms -->
     <Reference Include="System.Windows.Forms" />
@@ -89,6 +91,7 @@
     <Compile Include="Models\ChatCompletionRequest.cs" />
     <Compile Include="Models\ChatCompletionResponse.cs" />
     <Compile Include="Models\ChatMessage.cs" />
+    <Compile Include="Models\CdpTargetInfo.cs" />
     <Compile Include="Models\CliProxyHealthResult.cs" />
     <Compile Include="Models\CliProxyReleaseInfo.cs" />
     <Compile Include="Models\CliProxyResult.cs" />
@@ -112,6 +115,10 @@
     <Compile Include="Configuration\JsonSettings.cs" />
     <Compile Include="Services\AiClient.cs" />
     <Compile Include="Services\ChatHistory.cs" />
+    <Compile Include="Services\CdpClient.cs" />
+    <Compile Include="Services\CdpFileLogger.cs" />
+    <Compile Include="Services\CdpScriptInjector.cs" />
+    <Compile Include="Services\CdpService.cs" />
     <Compile Include="Services\CliProxyConfigWriter.cs" />
     <Compile Include="Services\CliProxyHttpClient.cs" />
     <Compile Include="Services\CliProxyProcessManager.cs" />
@@ -129,6 +136,7 @@
     <Compile Include="Services\ScreenCaptureService.cs" />
     <Compile Include="Services\ILogger.cs" />
     <Compile Include="Services\NLogLogger.cs" />
+    <Compile Include="Services\ImageResizer.cs" />
     <Compile Include="UI\SettingsWindow.xaml.cs">
       <DependentUpon>SettingsWindow.xaml</DependentUpon>
       <SubType>Code</SubType>

@@ -15,12 +15,14 @@ namespace Suterusu.Services
         private readonly HttpClient _httpClient;
         private readonly string _baseUrl;
         private readonly string _model;
+        private readonly int _maxTokens;
 
-        public LlamaCppOcrClient(ILogger logger, string baseUrl, string model, HttpMessageHandler handler = null)
+        public LlamaCppOcrClient(ILogger logger, string baseUrl, string model, int maxTokens = 4096, HttpMessageHandler handler = null)
         {
             _logger = logger;
             _baseUrl = baseUrl.TrimEnd('/');
             _model = string.IsNullOrWhiteSpace(model) ? "default" : model;
+            _maxTokens = maxTokens > 0 ? maxTokens : 4096;
             _httpClient = handler != null
                 ? new HttpClient(handler)
                 : new HttpClient();
@@ -45,6 +47,7 @@ namespace Suterusu.Services
                 var request = new
                 {
                     model = _model,
+                    max_tokens = _maxTokens,
                     messages = new[]
                     {
                         new

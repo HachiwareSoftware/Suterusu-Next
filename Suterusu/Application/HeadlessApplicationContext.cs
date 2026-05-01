@@ -23,6 +23,7 @@ namespace Suterusu.Application
         private readonly KeyboardHook           _keyboardHook;
         private readonly MouseHook               _mouseHook;
         private readonly CliProxyProcessManager  _cliProxyManager;
+        private readonly CdpService              _cdpService;
         private          AppConfig              _config;
 
         public HeadlessApplicationContext(StartupOptions options)
@@ -80,6 +81,11 @@ namespace Suterusu.Application
             }
 
             TryAutoStartCliProxyAsync();
+            if (_config.Cdp?.Enabled == true)
+            {
+                _cdpService = new CdpService(_config, new CdpFileLogger());
+                _cdpService.Start();
+            }
             PrintStartupBanner(options.DebugEnabled);
         }
 
@@ -214,6 +220,7 @@ namespace Suterusu.Application
                 _controller?.Dispose();
                 _aiClient?.Dispose();
                 _cliProxyManager?.Dispose();
+                _cdpService?.Dispose();
                 (_notificationService as IDisposable)?.Dispose();
                 _logger.Info("Suterusu shutdown.");
             }

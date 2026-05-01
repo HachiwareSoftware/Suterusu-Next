@@ -486,6 +486,18 @@
 
                                 <TextBlock Style="{StaticResource LabelStyle}" Text="Timeout (ms)" />
                                 <TextBox x:Name="TxtOcrTimeoutMs" Width="100" HorizontalAlignment="Left" />
+
+                                <TextBlock Style="{StaticResource LabelStyle}" Text="Max Tokens" />
+                                <TextBox x:Name="TxtOcrMaxTokens" Width="100" HorizontalAlignment="Left" />
+                                <TextBlock Style="{StaticResource HintStyle}" Text="Limits response length. Default: 4096." />
+
+                                <CheckBox x:Name="ChkOcrDownscale" Content="Downscale large images before sending" Margin="0,8,0,0" Checked="OnOcrDownscaleChanged" Unchecked="OnOcrDownscaleChanged" />
+                                <StackPanel x:Name="PnlOcrMaxDimension" Orientation="Horizontal" Margin="0,4,0,0">
+                                    <TextBlock Style="{StaticResource LabelStyle}" Text="Max dimension (px)" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                    <TextBox x:Name="TxtOcrMaxDimension" Width="80" HorizontalAlignment="Left" />
+                                </StackPanel>
+                                <TextBlock Style="{StaticResource HintStyle}" Text="When downscale is on, images larger than this size are resized. Default: 1024." />
+
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -530,6 +542,38 @@
                                 </StackPanel>
                                 <TextBlock Style="{StaticResource LabelStyle}" Text="Timeout (ms)" />
                                 <TextBox x:Name="TxtMultiRequestTimeoutMs" Width="100" HorizontalAlignment="Left" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource SectionBorderStyle}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource SectionTitleStyle}" Text="Browser CDP" />
+                                <CheckBox x:Name="ChkCdpEnabled" Content="Connect to already-running Chrome DevTools Protocol" />
+                                <TextBlock Style="{StaticResource HintStyle}" Text="Does not launch a browser. Connects only to 127.0.0.1 and writes CDP logs to logs/cdp-*.log." Margin="0,0,0,4" />
+
+                                <TextBlock Style="{StaticResource LabelStyle}" Text="Port" />
+                                <TextBox x:Name="TxtCdpPort" Width="100" HorizontalAlignment="Left" />
+
+                                <TextBlock Style="{StaticResource LabelStyle}" Text="URL pattern" />
+                                <TextBox x:Name="TxtCdpUrlPattern" />
+                                <TextBlock Style="{StaticResource HintStyle}" Text="Optional regex used to pick the page target. Empty = first page." />
+
+                                <TextBlock Style="{StaticResource LabelStyle}" Text="Event scripts directory" />
+                                <TextBox x:Name="TxtCdpStartupScriptsDirectory" />
+                                <TextBlock Style="{StaticResource HintStyle}" Text="Default: js/events. Put scripts in onload, onclick, onkeydown, etc. subfolders." />
+
+                                <CheckBox x:Name="ChkCdpInjectOnStartup" Content="Inject event scripts persistently and evaluate current page once" Margin="0,6,0,0" />
+
+                                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                    <StackPanel Margin="0,0,12,0">
+                                        <TextBlock Style="{StaticResource LabelStyle}" Text="Retry interval (ms)" />
+                                        <TextBox x:Name="TxtCdpRetryIntervalMs" Width="120" />
+                                    </StackPanel>
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource LabelStyle}" Text="Connect timeout (ms)" />
+                                        <TextBox x:Name="TxtCdpConnectTimeoutMs" Width="120" />
+                                    </StackPanel>
+                                </StackPanel>
                             </StackPanel>
                         </Border>
 

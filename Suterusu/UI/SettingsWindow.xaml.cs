@@ -82,6 +82,15 @@ namespace Suterusu.UI
             TxtMultiRequestTimeoutMs.Text     = config.MultiRequestTimeoutMs.ToString();
             TxtSystemPrompt.Text              = config.SystemPrompt ?? string.Empty;
 
+            var cdp = config.Cdp ?? CdpSettings.CreateDefault();
+            ChkCdpEnabled.IsChecked = cdp.Enabled;
+            TxtCdpPort.Text = cdp.Port.ToString();
+            TxtCdpUrlPattern.Text = cdp.UrlPattern ?? string.Empty;
+            TxtCdpStartupScriptsDirectory.Text = cdp.StartupScriptsDirectory ?? "js/events";
+            ChkCdpInjectOnStartup.IsChecked = cdp.InjectOnStartup;
+            TxtCdpRetryIntervalMs.Text = cdp.RetryIntervalMs.ToString();
+            TxtCdpConnectTimeoutMs.Text = cdp.ConnectTimeoutMs.ToString();
+
             var cliProxy = config.CliProxy ?? CliProxySettings.CreateDefault();
             ChkCliProxyEnabled.IsChecked = cliProxy.Enabled;
             ChkCliProxyAutoStart.IsChecked = cliProxy.AutoStart;
@@ -132,6 +141,10 @@ namespace Suterusu.UI
             TxtOcrPrompt.Text = config.Ocr?.Prompt ?? "Recognize all text from this image.";
             ChkOcrUseClipboardPrompt.IsChecked = config.Ocr?.UseClipboardPrompt ?? false;
             TxtOcrTimeoutMs.Text = config.Ocr?.TimeoutMs.ToString() ?? "60000";
+            TxtOcrMaxTokens.Text = config.Ocr?.MaxTokens.ToString() ?? "4096";
+            ChkOcrDownscale.IsChecked = config.Ocr?.DownscaleImage ?? true;
+            TxtOcrMaxDimension.Text = config.Ocr?.MaxImageDimension.ToString() ?? "1024";
+            UpdateDownscaleVisibility();
             UpdateOcrProviderVisibility(ocrProvider);
 
             _capturingHotkey = null;
@@ -176,6 +189,9 @@ namespace Suterusu.UI
                     Provider       = GetOcrProvider(),
                     Prompt         = TxtOcrPrompt.Text,
                     TimeoutMs      = int.TryParse(TxtOcrTimeoutMs.Text, out int ocrTimeout) ? ocrTimeout : 60000,
+                    MaxTokens      = int.TryParse(TxtOcrMaxTokens.Text, out int maxTokens) ? maxTokens : 4096,
+                    DownscaleImage = ChkOcrDownscale.IsChecked ?? true,
+                    MaxImageDimension = int.TryParse(TxtOcrMaxDimension.Text, out int maxDim) ? maxDim : 1024,
                     LlamaCppUrl    = TxtOcrLlamaCppUrl.Text,
                     LlamaCppModel  = CboLlamaCppModel.Text,
                     ZaiToken       = PwdOcrZaiToken.Password,
@@ -188,6 +204,16 @@ namespace Suterusu.UI
                     HfModel            = TxtOcrHfModel.Text,
                     UseClipboardPrompt = ChkOcrUseClipboardPrompt.IsChecked ?? false,
                     WindowsOcrLanguage = _ocrHelper.GetSelectedWindowsOcrLanguage()
+                },
+                Cdp = new CdpSettings
+                {
+                    Enabled = ChkCdpEnabled.IsChecked ?? false,
+                    Port = int.TryParse(TxtCdpPort.Text, out int cdpPort) ? cdpPort : 27245,
+                    UrlPattern = TxtCdpUrlPattern.Text,
+                    StartupScriptsDirectory = TxtCdpStartupScriptsDirectory.Text,
+                    InjectOnStartup = ChkCdpInjectOnStartup.IsChecked ?? true,
+                    RetryIntervalMs = int.TryParse(TxtCdpRetryIntervalMs.Text, out int cdpRetry) ? cdpRetry : 5000,
+                    ConnectTimeoutMs = int.TryParse(TxtCdpConnectTimeoutMs.Text, out int cdpTimeout) ? cdpTimeout : 2000
                 },
                 CliProxy = new CliProxySettings
                 {
@@ -501,7 +527,21 @@ namespace Suterusu.UI
             if (PnlOcrPromptRow != null)
                 PnlOcrPromptRow.Visibility = isWindows ? Visibility.Collapsed : Visibility.Visible;
 
-            _ocrHelper.UpdateStatus();
+            if (_ocrHelper != null)
+                _ocrHelper.UpdateStatus();
+        }
+
+        private void OnOcrDownscaleChanged(object sender, RoutedEventArgs e)
+        {
+            UpdateDownscaleVisibility();
+        }
+
+        private void UpdateDownscaleVisibility()
+        {
+            if (PnlOcrMaxDimension != null)
+                PnlOcrMaxDimension.Visibility = ChkOcrDownscale.IsChecked == true
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
         }
 
         private void OnRefreshWindowsOcrLanguages(object sender, RoutedEventArgs e)

@@ -17,13 +17,15 @@ namespace Suterusu.Services
         private readonly string _baseUrl;
         private readonly string _apiKey;
         private readonly string _model;
+        private readonly int _maxTokens;
 
-        public CustomOcrClient(ILogger logger, string baseUrl, string apiKey, string model, HttpMessageHandler handler = null)
+        public CustomOcrClient(ILogger logger, string baseUrl, string apiKey, string model, int maxTokens = 4096, HttpMessageHandler handler = null)
         {
             _logger = logger;
             _baseUrl = baseUrl.TrimEnd('/');
             _apiKey = apiKey;
             _model = string.IsNullOrWhiteSpace(model) ? "gpt-4o-mini" : model;
+            _maxTokens = maxTokens > 0 ? maxTokens : 4096;
             _httpClient = handler != null
                 ? new HttpClient(handler)
                 : new HttpClient();
@@ -53,7 +55,7 @@ namespace Suterusu.Services
                             }
                         }
                     },
-                    max_tokens = 4096
+                    max_tokens = _maxTokens
                 };
                 var jsonBody = JsonConvert.SerializeObject(requestBody);
 
