@@ -18,6 +18,7 @@ namespace Suterusu.UI
         private readonly Action<string> _showValidation;
         private readonly Action _hideValidation;
         private readonly Action<string> _updateStatus;
+        private readonly Func<string> _getConnectButtonText;
         private readonly ILogger _logger;
         private readonly CancellationToken _windowCt;
         private readonly TextBlock _versionText;
@@ -47,6 +48,7 @@ namespace Suterusu.UI
             Action<string> showValidation,
             Action hideValidation,
             Action<string> updateStatus,
+            Func<string> getConnectButtonText,
             ILogger logger,
             CancellationToken windowCt,
             TextBlock versionText,
@@ -70,6 +72,7 @@ namespace Suterusu.UI
             _showValidation = showValidation;
             _hideValidation = hideValidation;
             _updateStatus = updateStatus;
+            _getConnectButtonText = getConnectButtonText;
             _logger = logger;
             _windowCt = windowCt;
             _versionText = versionText;
@@ -101,38 +104,12 @@ namespace Suterusu.UI
                 config.CliProxy.Enabled = true;
                 config.CliProxy.AutoStart = _autoStartCheck.IsChecked ?? true;
 
-                var login = await _manager.LoginWithBrowserOAuthAsync(config, CancellationToken.None);
-                if (!login.Success)
+                var progress = new Progress<string>(msg => _updateStatus(msg));
+                var connect = await _manager.ConnectAndUseAsync(config, progress, _windowCt);
+                if (!connect.Success)
                 {
-                    _showValidation("CLI proxy login failed: " + login.Error);
-                    _updateStatus("Login failed.");
-                    return;
-                }
-
-                _updateStatus("Login complete. Starting local proxy...");
-
-                var start = await _manager.StartAsync(config, CancellationToken.None);
-                if (!start.Success)
-                {
-                    _showValidation("Failed to start CLI proxy: " + start.Error);
-                    _updateStatus("Start failed.");
-                    return;
-                }
-
-                var health = await _manager.GetModelsAsync(config, CancellationToken.None);
-                if (health.Success && health.Models.Count > 0)
-                {
-                    if (!health.Models.Contains(config.CliProxy.Model, StringComparer.OrdinalIgnoreCase))
-                        config.CliProxy.Model = health.Models[0];
-                }
-
-                _updateStatus("Testing model...");
-
-                var test = await _manager.TestModelAsync(config, config.CliProxy.Model, CancellationToken.None);
-                if (!test.Success)
-                {
-                    _showValidation("CLI proxy model test failed: " + test.Error);
-                    _updateStatus("Model test failed.");
+                    _showValidation(connect.Error);
+                    _updateStatus("Connect flow failed.");
                     return;
                 }
 
@@ -147,7 +124,11 @@ namespace Suterusu.UI
                 _controller?.RefreshConfiguration();
                 _configSaved?.Invoke(_configManager.Current);
                 _hideValidation();
-                _updateStatus($"Connected and saved. Using model '{config.CliProxy.Model}'.");
+                _updateStatus($"Connected and saved. Using model '{connect.Message}'.");
+            }
+            catch (OperationCanceledException)
+            {
+                _updateStatus("Connect flow canceled.");
             }
             catch (Exception ex)
             {
@@ -166,7 +147,7 @@ namespace Suterusu.UI
             await RunSafe(async config =>
             {
                 config.CliProxy.Enabled = true;
-                var result = await _manager.StartAsync(config, CancellationToken.None);
+                var result = await _manager.StartAsync(config, _windowCt);
                 if (!result.Success)
                     return ("Failed to start CLI proxy: " + result.Error, "Start failed.");
 
@@ -197,11 +178,11 @@ namespace Suterusu.UI
             {
                 config.CliProxy.Enabled = true;
 
-                var start = await _manager.StartAsync(config, CancellationToken.None);
+                var start = await _manager.StartAsync(config, _windowCt);
                 if (!start.Success)
                     return ("Failed to start CLI proxy: " + start.Error, "Start failed.");
 
-                var test = await _manager.TestModelAsync(config, config.CliProxy.Model, CancellationToken.None);
+                var test = await _manager.TestModelAsync(config, config.CliProxy.Model, _windowCt);
                 if (!test.Success)
                     return ("Model test failed: " + test.Error, "Model test failed.");
 
@@ -215,11 +196,11 @@ namespace Suterusu.UI
             {
                 config.CliProxy.Enabled = true;
 
-                var start = await _manager.StartAsync(config, CancellationToken.None);
+                var start = await _manager.StartAsync(config, _windowCt);
                 if (!start.Success)
                     return ("Failed to start CLI proxy: " + start.Error, "Start failed.");
 
-                var health = await _manager.GetModelsAsync(config, CancellationToken.None);
+                var health = await _manager.GetModelsAsync(config, _windowCt);
                 if (!health.Success)
                     return ("Could not fetch models: " + health.Error, "Model detection failed.");
 
@@ -240,6 +221,8 @@ namespace Suterusu.UI
 
             string installed = _manager.GetInstalledVersion(_configManager.Current);
             string latest = null;
+
+            UpdateVersionStatus(installed, null);
 
             try
             {
@@ -375,7 +358,7 @@ namespace Suterusu.UI
             _checkUpdatesBtn.IsEnabled = !busy;
             _updateBtn.IsEnabled = !busy;
 
-            _connectBtn.Content = busy ? "Working..." : "Connect ChatGPT & Use";
+            _connectBtn.Content = busy ? "Working..." : (_getConnectButtonText?.Invoke() ?? "Connect & Use");
         }
 
         private void UpdateInstallPath()

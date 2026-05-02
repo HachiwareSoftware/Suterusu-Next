@@ -374,7 +374,7 @@ namespace Suterusu.Configuration
                 CliProxy.OAuthCallbackPort = 1455;
 
             if (string.IsNullOrWhiteSpace(CliProxy.Model))
-                CliProxy.Model = "gpt-5.3-codex";
+                CliProxy.Model = CliProxySettings.DefaultCodexModel;
 
             if (string.IsNullOrWhiteSpace(CliProxy.ApiKey))
                 CliProxy.ApiKey = CliProxySettings.GenerateSecret(24);
@@ -384,6 +384,25 @@ namespace Suterusu.Configuration
 
             if (string.Equals(CliProxy.ApiKey, CliProxy.ManagementKey, StringComparison.Ordinal))
                 CliProxy.ManagementKey = CliProxySettings.GenerateSecret(24);
+
+            if (!CliProxySettings.IsGeminiProvider(CliProxy.Provider))
+                CliProxy.Provider = CliProxySettings.CodexProvider;
+
+            if (CliProxy.GeminiProjectId == null)
+                CliProxy.GeminiProjectId = "";
+            else
+                CliProxy.GeminiProjectId = CliProxy.GeminiProjectId.Trim();
+
+            if (string.IsNullOrWhiteSpace(CliProxy.Model)
+                || (CliProxySettings.IsGeminiProvider(CliProxy.Provider)
+                    && string.Equals(CliProxy.Model, CliProxySettings.DefaultCodexModel, StringComparison.OrdinalIgnoreCase))
+                || (CliProxySettings.IsCodexProvider(CliProxy.Provider)
+                    && string.Equals(CliProxy.Model, CliProxySettings.DefaultGeminiModel, StringComparison.OrdinalIgnoreCase)))
+            {
+                CliProxy.Model = CliProxySettings.IsGeminiProvider(CliProxy.Provider)
+                    ? CliProxySettings.DefaultGeminiModel
+                    : CliProxySettings.DefaultCodexModel;
+            }
         }
 
         private static bool IsLocalHost(string host)
@@ -408,12 +427,23 @@ namespace Suterusu.Configuration
             if (CliProxy?.Enabled != true)
                 return;
 
+            string baseUrl = CliProxy.GetApiBaseUrl();
+            string apiKey = CliProxy.ApiKey;
+
+            ModelPriority.Insert(0, new ModelEntry
+            {
+                Name = CliProxySettings.GeminiModelEntryName,
+                BaseUrl = baseUrl,
+                ApiKey = apiKey,
+                Model = CliProxySettings.DefaultGeminiModel
+            });
+
             ModelPriority.Insert(0, new ModelEntry
             {
                 Name = CliProxySettings.GeneratedModelEntryName,
-                BaseUrl = CliProxy.GetApiBaseUrl(),
-                ApiKey = CliProxy.ApiKey,
-                Model = string.IsNullOrWhiteSpace(CliProxy.Model) ? "gpt-5.3-codex" : CliProxy.Model.Trim()
+                BaseUrl = baseUrl,
+                ApiKey = apiKey,
+                Model = CliProxySettings.DefaultCodexModel
             });
         }
 
@@ -421,7 +451,8 @@ namespace Suterusu.Configuration
         {
             return entry != null
                 && !string.IsNullOrWhiteSpace(entry.Name)
-                && entry.Name.Equals(CliProxySettings.GeneratedModelEntryName, StringComparison.OrdinalIgnoreCase);
+                && (entry.Name.Equals(CliProxySettings.GeneratedModelEntryName, StringComparison.OrdinalIgnoreCase)
+                    || entry.Name.Equals(CliProxySettings.GeminiModelEntryName, StringComparison.OrdinalIgnoreCase));
         }
 
         public IReadOnlyList<string> Validate()
@@ -502,6 +533,10 @@ namespace Suterusu.Configuration
 
                 if (string.IsNullOrWhiteSpace(CliProxy.Model))
                     errors.Add("CLI proxy model is required when CLI proxy is enabled.");
+
+                if (!CliProxySettings.IsCodexProvider(CliProxy.Provider)
+                    && !CliProxySettings.IsGeminiProvider(CliProxy.Provider))
+                    errors.Add("CLI proxy provider must be Codex or Gemini.");
 
                 if (string.IsNullOrWhiteSpace(CliProxy.ApiKey))
                     errors.Add("CLI proxy API key is required when CLI proxy is enabled.");

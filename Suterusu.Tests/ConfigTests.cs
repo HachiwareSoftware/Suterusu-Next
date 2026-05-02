@@ -366,9 +366,10 @@ namespace Suterusu.Tests
             Assert.NotNull(config.CliProxy);
             Assert.Equal("127.0.0.1", config.CliProxy.Host);
             Assert.Equal(8317, config.CliProxy.Port);
+            Assert.Equal(CliProxySettings.CodexProvider, config.CliProxy.Provider);
             Assert.False(string.IsNullOrWhiteSpace(config.CliProxy.ApiKey));
             Assert.False(string.IsNullOrWhiteSpace(config.CliProxy.ManagementKey));
-            Assert.False(string.IsNullOrWhiteSpace(config.CliProxy.Model));
+            Assert.Equal(CliProxySettings.DefaultCodexModel, config.CliProxy.Model);
         }
 
         [Fact]
@@ -437,11 +438,47 @@ namespace Suterusu.Tests
 
             config.Normalize();
 
-            var entry = Assert.Single(config.ModelPriority);
-            Assert.Equal(CliProxySettings.GeneratedModelEntryName, entry.Name);
-            Assert.Equal("http://127.0.0.1:8317/v1", entry.BaseUrl);
-            Assert.Equal("gpt-5.3-codex", entry.Model);
-            Assert.Equal("secret", entry.ApiKey);
+            Assert.Equal(2, config.ModelPriority.Count);
+            Assert.Contains(config.ModelPriority, entry =>
+                entry.Name == CliProxySettings.GeneratedModelEntryName
+                && entry.BaseUrl == "http://127.0.0.1:8317/v1"
+                && entry.Model == CliProxySettings.DefaultCodexModel
+                && entry.ApiKey == "secret");
+            Assert.Contains(config.ModelPriority, entry =>
+                entry.Name == CliProxySettings.GeminiModelEntryName
+                && entry.BaseUrl == "http://127.0.0.1:8317/v1"
+                && entry.Model == CliProxySettings.DefaultGeminiModel
+                && entry.ApiKey == "secret");
+        }
+
+        [Fact]
+        public void Normalize_GeminiProviderControlsLoginModel_NotGeneratedEntries()
+        {
+            var config = AppConfig.CreateDefault();
+            config.ModelPriority = new List<ModelEntry>();
+            config.CliProxy.Enabled = true;
+            config.CliProxy.Provider = CliProxySettings.GeminiProvider;
+            config.CliProxy.Model = "gpt-5.3-codex";
+            config.CliProxy.ApiKey = "secret";
+
+            config.Normalize();
+
+            Assert.Equal(CliProxySettings.DefaultGeminiModel, config.CliProxy.Model);
+            Assert.Equal(2, config.ModelPriority.Count);
+            Assert.Contains(config.ModelPriority, entry => entry.Name == CliProxySettings.GeneratedModelEntryName);
+            Assert.Contains(config.ModelPriority, entry => entry.Name == CliProxySettings.GeminiModelEntryName);
+        }
+
+        [Fact]
+        public void Normalize_SwitchesBackToCodexDefault_WhenProviderIsCodex()
+        {
+            var config = AppConfig.CreateDefault();
+            config.CliProxy.Provider = CliProxySettings.CodexProvider;
+            config.CliProxy.Model = "gemini-2.5-pro";
+
+            config.Normalize();
+
+            Assert.Equal(CliProxySettings.DefaultCodexModel, config.CliProxy.Model);
         }
 
         [Fact]
@@ -456,6 +493,13 @@ namespace Suterusu.Tests
                     BaseUrl = "http://127.0.0.1:8317/v1",
                     ApiKey = "secret",
                     Model = "gpt-5.3-codex"
+                },
+                new ModelEntry
+                {
+                    Name = CliProxySettings.GeminiModelEntryName,
+                    BaseUrl = "http://127.0.0.1:8317/v1",
+                    ApiKey = "secret",
+                    Model = "gemini-2.5-pro"
                 },
                 ValidEntry("https://api.openai.com/v1", "gpt-5.4-mini")
             };
@@ -488,8 +532,8 @@ namespace Suterusu.Tests
 
             config.Normalize();
 
-            var entry = Assert.Single(config.ModelPriority);
-            Assert.Equal("http://[::1]:8317/v1", entry.BaseUrl);
+            Assert.Equal(2, config.ModelPriority.Count);
+            Assert.All(config.ModelPriority, entry => Assert.Equal("http://[::1]:8317/v1", entry.BaseUrl));
         }
 
         [Fact]

@@ -7,6 +7,11 @@ namespace Suterusu.Configuration
     public class CliProxySettings
     {
         public const string GeneratedModelEntryName = "ChatGPT (CLIProxyAPI)";
+        public const string GeminiModelEntryName = "Gemini (CLIProxyAPI)";
+        public const string DefaultCodexModel = "gpt-5.3-codex";
+        public const string DefaultGeminiModel = "gemini-2.5-pro";
+        public const string GeminiProvider = "gemini";
+        public const string CodexProvider = "codex";
 
         public bool Enabled { get; set; }
         public bool AutoStart { get; set; }
@@ -18,7 +23,9 @@ namespace Suterusu.Configuration
         public int Port { get; set; }
         public string ApiKey { get; set; }
         public string ManagementKey { get; set; }
+        public string Provider { get; set; }
         public string Model { get; set; }
+        public string GeminiProjectId { get; set; }
         public int OAuthCallbackPort { get; set; }
 
         public static CliProxySettings CreateDefault()
@@ -37,9 +44,27 @@ namespace Suterusu.Configuration
                 Port = 8317,
                 ApiKey = GenerateSecret(24),
                 ManagementKey = GenerateSecret(24),
-                Model = "gpt-5.3-codex",
+                Provider = CodexProvider,
+                Model = DefaultCodexModel,
+                GeminiProjectId = "",
                 OAuthCallbackPort = 1455
             };
+        }
+
+        public string GetDisplayName()
+        {
+            return IsGeminiProvider(Provider) ? GeminiModelEntryName : GeneratedModelEntryName;
+        }
+
+        public static bool IsGeminiProvider(string provider)
+        {
+            return string.Equals(provider, GeminiProvider, StringComparison.OrdinalIgnoreCase);
+        }
+
+        public static bool IsCodexProvider(string provider)
+        {
+            return string.IsNullOrWhiteSpace(provider)
+                || string.Equals(provider, CodexProvider, StringComparison.OrdinalIgnoreCase);
         }
 
         public static string GetDefaultRuntimeDirectory()

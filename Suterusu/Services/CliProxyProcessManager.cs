@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -156,13 +157,7 @@ namespace Suterusu.Services
                 return writeResult;
 
             var settings = config.CliProxy;
-            var args = new List<string>
-            {
-                "--config", settings.ConfigPath,
-                "--codex-login",
-                "--no-browser",
-                "--oauth-callback-port", settings.OAuthCallbackPort.ToString()
-            };
+            var args = BuildLoginArguments(settings);
 
             var startInfo = CreateStartInfo(settings.ExecutablePath, args, true);
             var output = new StringBuilder();
@@ -200,6 +195,68 @@ namespace Suterusu.Services
                 _logger.Error("CLI proxy login process failed.", ex);
                 return CliProxyResult.Fail(ex.Message);
             }
+        }
+
+        public async Task<CliProxyResult> ConnectAndUseAsync(
+            AppConfig config,
+            IProgress<string> progress,
+            CancellationToken cancellationToken)
+        {
+            if (config?.CliProxy == null)
+                return CliProxyResult.Fail("CLI proxy settings are not configured.");
+
+            cancellationToken.ThrowIfCancellationRequested();
+            config.CliProxy.Enabled = true;
+
+            progress?.Report($"Starting {GetProviderDisplayName(config.CliProxy)} browser login...");
+            var login = await LoginWithBrowserOAuthAsync(config, cancellationToken).ConfigureAwait(false);
+            if (!login.Success)
+                return CliProxyResult.Fail("CLI proxy login failed: " + login.Error);
+
+            progress?.Report("Login complete. Starting local proxy...");
+            var start = await StartAsync(config, cancellationToken).ConfigureAwait(false);
+            if (!start.Success)
+                return CliProxyResult.Fail("Failed to start CLI proxy: " + start.Error);
+
+            progress?.Report("Detecting models...");
+            var health = await GetModelsAsync(config, cancellationToken).ConfigureAwait(false);
+            if (health.Success && health.Models.Count > 0
+                && !health.Models.Contains(config.CliProxy.Model, StringComparer.OrdinalIgnoreCase))
+            {
+                config.CliProxy.Model = health.Models[0];
+            }
+
+            progress?.Report("Testing model...");
+            var test = await TestModelAsync(config, config.CliProxy.Model, cancellationToken).ConfigureAwait(false);
+            if (!test.Success)
+                return CliProxyResult.Fail("CLI proxy model test failed: " + test.Error);
+
+            return CliProxyResult.Ok(config.CliProxy.Model);
+        }
+
+        public static IReadOnlyList<string> BuildLoginArguments(CliProxySettings settings)
+        {
+            var args = new List<string>
+            {
+                "--config", settings.ConfigPath,
+                CliProxySettings.IsGeminiProvider(settings.Provider) ? "--login" : "--codex-login",
+                "--no-browser",
+                "--oauth-callback-port", settings.OAuthCallbackPort.ToString()
+            };
+
+            if (CliProxySettings.IsGeminiProvider(settings.Provider)
+                && !string.IsNullOrWhiteSpace(settings.GeminiProjectId))
+            {
+                args.Add("--project_id");
+                args.Add(settings.GeminiProjectId.Trim());
+            }
+
+            return args;
+        }
+
+        private static string GetProviderDisplayName(CliProxySettings settings)
+        {
+            return CliProxySettings.IsGeminiProvider(settings?.Provider) ? "Gemini" : "ChatGPT";
         }
 
         private void AttachOAuthHandlers(Process process, StringBuilder output, TaskCompletionSource<string> urlTcs)
@@ -383,7 +440,7 @@ namespace Suterusu.Services
                     return true;
             }
 
-            var health = await _httpClient.GetModelsAsync(config, cancellationToken).ConfigureAwait(false);
+            var health = await _httpClient.GetModelsAsync(config, cancellationToken, false).ConfigureAwait(false);
             return health.Success;
         }
 

@@ -46,7 +46,7 @@ namespace Suterusu.Services
 
                 try
                 {
-                    var models = await GetModelsAsync(config, cancellationToken).ConfigureAwait(false);
+                    var models = await GetModelsAsync(config, cancellationToken, false).ConfigureAwait(false);
                     if (models.Success)
                         return CliProxyResult.Ok();
 
@@ -64,6 +64,14 @@ namespace Suterusu.Services
         }
 
         public async Task<CliProxyHealthResult> GetModelsAsync(AppConfig config, CancellationToken cancellationToken)
+        {
+            return await GetModelsAsync(config, cancellationToken, true).ConfigureAwait(false);
+        }
+
+        public async Task<CliProxyHealthResult> GetModelsAsync(
+            AppConfig config,
+            CancellationToken cancellationToken,
+            bool logFailures)
         {
             if (config?.CliProxy == null)
                 return CliProxyHealthResult.Fail("CLI proxy settings are not configured.");
@@ -87,10 +95,16 @@ namespace Suterusu.Services
                     }
                 }
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
-                _logger.Warn($"CLI proxy models check failed: {ex.Message}");
-                return CliProxyHealthResult.Fail(ex.Message);
+                string error = DescribeException(ex);
+                if (logFailures)
+                    _logger.Warn($"CLI proxy models check failed: {error}");
+                return CliProxyHealthResult.Fail(error);
             }
         }
 
@@ -149,11 +163,29 @@ namespace Suterusu.Services
                     }
                 }
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
-                _logger.Warn($"CLI proxy model test failed: {ex.Message}");
-                return CliProxyResult.Fail(ex.Message);
+                string error = DescribeException(ex);
+                _logger.Warn($"CLI proxy model test failed: {error}");
+                return CliProxyResult.Fail(error);
             }
+        }
+
+        private static string DescribeException(Exception ex)
+        {
+            Exception root = ex;
+            while (root.InnerException != null)
+                root = root.InnerException;
+
+            if (!string.IsNullOrWhiteSpace(root.Message)
+                && !string.Equals(root.Message, ex.Message, StringComparison.Ordinal))
+                return root.Message;
+
+            return ex.Message;
         }
 
         private static string BuildUrl(CliProxySettings settings, string path)

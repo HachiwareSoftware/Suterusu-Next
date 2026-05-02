@@ -188,118 +188,6 @@
                     <StackPanel>
                         <Border Style="{StaticResource SectionBorderStyle}">
                             <StackPanel>
-                                <TextBlock Style="{StaticResource SectionTitleStyle}" Text="ChatGPT / Codex (CLI Proxy)" />
-                                <TextBlock Style="{StaticResource HintStyle}"
-                                           Margin="0,0,0,8"
-                                           Text="Connect through browser OAuth, start local proxy, test model, and save to Model Priority in one click." />
-
-                                 <WrapPanel Margin="0,0,0,6">
-                                     <Button x:Name="BtnCliProxyConnect"
-                                             Style="{StaticResource PrimaryButtonStyle}"
-                                             Content="Connect ChatGPT &amp; Use"
-                                             Click="OnCliProxyConnectAndUse"
-                                             Margin="0,0,6,6" />
-                                     <Button x:Name="BtnCliProxyStart"
-                                             Style="{StaticResource SecondaryButtonStyle}"
-                                             Content="Start"
-                                             Click="OnCliProxyStart"
-                                             Margin="0,0,6,6" />
-                                     <Button x:Name="BtnCliProxyStop"
-                                             Style="{StaticResource SecondaryButtonStyle}"
-                                             Content="Stop"
-                                             Click="OnCliProxyStop"
-                                             Margin="0,0,6,6" />
-                                     <Button x:Name="BtnCliProxyTest"
-                                             Style="{StaticResource SecondaryButtonStyle}"
-                                             Content="Test"
-                                             Click="OnCliProxyTest"
-                                             Margin="0,0,6,6" />
-                                     <Button x:Name="BtnCliProxyModels"
-                                             Style="{StaticResource SecondaryButtonStyle}"
-                                             Content="Detect Models"
-                                             Click="OnCliProxyRefreshModels"
-                                             Margin="0,0,6,6" />
-                                 </WrapPanel>
-
-                                 <!-- CLIProxyAPI version / update controls -->
-                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                     <TextBlock x:Name="TxtCliProxyVersion"
-                                                Style="{StaticResource HintStyle}"
-                                                VerticalAlignment="Center"
-                                                Margin="0,0,8,0" />
-                                     <Button x:Name="BtnCheckForUpdates"
-                                             Style="{StaticResource SecondaryButtonStyle}"
-                                             Content="Check for Updates"
-                                             Click="OnCheckForUpdates"
-                                             Padding="8,2"
-                                             Margin="0,0,6,0" />
-                                     <Button x:Name="BtnUpdateCliProxy"
-                                             Style="{StaticResource SecondaryButtonStyle}"
-                                             Content="Install / Update"
-                                             Click="OnUpdateCliProxy"
-                                             Padding="8,2" />
-                                  </StackPanel>
-
-                                  <TextBlock x:Name="TxtCliProxyInstallPath"
-                                             Style="{StaticResource HintStyle}"
-                                             Margin="0,0,0,8"
-                                             TextWrapping="Wrap" />
-
-                                 <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="220" />
-                                    </Grid.ColumnDefinitions>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                    </Grid.RowDefinitions>
-
-                                    <CheckBox x:Name="ChkCliProxyEnabled"
-                                              Grid.Row="0"
-                                              Grid.Column="0"
-                                              Grid.ColumnSpan="2"
-                                              Content="Enable CLI proxy for chat"
-                                              Margin="0,0,0,2" />
-
-                                    <CheckBox x:Name="ChkCliProxyAutoStart"
-                                              Grid.Row="1"
-                                              Grid.Column="0"
-                                              Grid.ColumnSpan="2"
-                                              Content="Auto-start with app"
-                                              Margin="0,0,0,4" />
-
-                                    <TextBlock Grid.Row="2"
-                                               Grid.Column="0"
-                                               Style="{StaticResource LabelStyle}"
-                                               Margin="0,0,12,4"
-                                               Text="Local endpoint"
-                                               VerticalAlignment="Center" />
-                                    <TextBox x:Name="TxtCliProxyEndpoint"
-                                             Grid.Row="2"
-                                             Grid.Column="1"
-                                             IsReadOnly="True" />
-
-                                    <TextBlock Grid.Row="3"
-                                               Grid.Column="0"
-                                               Style="{StaticResource LabelStyle}"
-                                               Margin="0,0,12,0"
-                                               Text="Status"
-                                               VerticalAlignment="Center" />
-                                    <TextBlock x:Name="TxtCliProxyStatus"
-                                               Grid.Row="3"
-                                               Grid.Column="1"
-                                               Text="Not configured yet."
-                                               TextWrapping="Wrap"
-                                               VerticalAlignment="Center" />
-                                </Grid>
-                            </StackPanel>
-                        </Border>
-
-                        <Border Style="{StaticResource SectionBorderStyle}">
-                            <StackPanel>
                                 <TextBlock Style="{StaticResource SectionTitleStyle}" Text="Model Priority" />
                                 <ListBox x:Name="LstPriority" Height="100">
                                     <ListBox.ItemTemplate>
@@ -380,6 +268,156 @@
 
                                 <TextBlock Style="{StaticResource LabelStyle}" Text="System Prompt" />
                                 <TextBox x:Name="TxtSystemPrompt" Height="80" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Visible" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- CLIProxyAPI Tab -->
+            <TabItem Header="CLIProxyAPI">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,8,0,0">
+                    <StackPanel>
+                        <Border Style="{StaticResource SectionBorderStyle}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource SectionTitleStyle}" Text="CLIProxyAPI" />
+                                <TextBlock Style="{StaticResource HintStyle}"
+                                           Margin="0,0,0,8"
+                                           Text="Connect through browser OAuth, start local proxy, test model, and save Codex and Gemini entries to Model Priority." />
+
+                                <WrapPanel Margin="0,0,0,6">
+                                    <Button x:Name="BtnCliProxyConnect"
+                                            Style="{StaticResource PrimaryButtonStyle}"
+                                            Content="Connect ChatGPT &amp; Use"
+                                            Click="OnCliProxyConnectAndUse"
+                                            Margin="0,0,6,6" />
+                                    <Button x:Name="BtnCliProxyStart"
+                                            Style="{StaticResource SecondaryButtonStyle}"
+                                            Content="Start"
+                                            Click="OnCliProxyStart"
+                                            Margin="0,0,6,6" />
+                                    <Button x:Name="BtnCliProxyStop"
+                                            Style="{StaticResource SecondaryButtonStyle}"
+                                            Content="Stop"
+                                            Click="OnCliProxyStop"
+                                            Margin="0,0,6,6" />
+                                    <Button x:Name="BtnCliProxyTest"
+                                            Style="{StaticResource SecondaryButtonStyle}"
+                                            Content="Test"
+                                            Click="OnCliProxyTest"
+                                            Margin="0,0,6,6" />
+                                    <Button x:Name="BtnCliProxyModels"
+                                            Style="{StaticResource SecondaryButtonStyle}"
+                                            Content="Detect Models"
+                                            Click="OnCliProxyRefreshModels"
+                                            Margin="0,0,6,6" />
+                                </WrapPanel>
+
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                    <TextBlock x:Name="TxtCliProxyVersion"
+                                               Style="{StaticResource HintStyle}"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,8,0" />
+                                    <Button x:Name="BtnCheckForUpdates"
+                                            Style="{StaticResource SecondaryButtonStyle}"
+                                            Content="Check for Updates"
+                                            Click="OnCheckForUpdates"
+                                            Padding="8,2"
+                                            Margin="0,0,6,0" />
+                                    <Button x:Name="BtnUpdateCliProxy"
+                                            Style="{StaticResource SecondaryButtonStyle}"
+                                            Content="Install / Update"
+                                            Click="OnUpdateCliProxy"
+                                            Padding="8,2" />
+                                </StackPanel>
+
+                                <TextBlock x:Name="TxtCliProxyInstallPath"
+                                           Style="{StaticResource HintStyle}"
+                                           Margin="0,0,0,8"
+                                           TextWrapping="Wrap" />
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="220" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+
+                                    <TextBlock Grid.Row="0"
+                                               Grid.Column="0"
+                                               Style="{StaticResource LabelStyle}"
+                                               Margin="0,0,12,4"
+                                               Text="Login target"
+                                               VerticalAlignment="Center" />
+                                    <ComboBox x:Name="CboCliProxyProvider"
+                                              Grid.Row="0"
+                                              Grid.Column="1"
+                                              SelectionChanged="OnCliProxyProviderChanged">
+                                        <ComboBoxItem Content="ChatGPT / Codex" Tag="codex" />
+                                        <ComboBoxItem Content="Gemini" Tag="gemini" />
+                                    </ComboBox>
+
+                                    <TextBlock Grid.Row="1"
+                                               Grid.Column="0"
+                                               Style="{StaticResource LabelStyle}"
+                                               Margin="0,0,12,4"
+                                               Text="Gemini project ID"
+                                               VerticalAlignment="Center" />
+                                    <TextBox x:Name="TxtCliProxyGeminiProjectId"
+                                             Grid.Row="1"
+                                             Grid.Column="1" />
+                                    <TextBlock Grid.Row="2"
+                                               Grid.Column="1"
+                                               Style="{StaticResource HintStyle}"
+                                               Margin="0,0,0,4"
+                                               Text="Optional. CLIProxyAPI accepts blank for normal Gemini login." />
+
+                                    <CheckBox x:Name="ChkCliProxyEnabled"
+                                              Grid.Row="3"
+                                              Grid.Column="0"
+                                              Grid.ColumnSpan="2"
+                                              Content="Enable CLI proxy for chat"
+                                              Margin="0,0,0,2" />
+
+                                    <CheckBox x:Name="ChkCliProxyAutoStart"
+                                              Grid.Row="4"
+                                              Grid.Column="0"
+                                              Grid.ColumnSpan="2"
+                                              Content="Auto-start with app"
+                                              Margin="0,0,0,4" />
+
+                                    <TextBlock Grid.Row="5"
+                                               Grid.Column="0"
+                                               Style="{StaticResource LabelStyle}"
+                                               Margin="0,0,12,4"
+                                               Text="Local endpoint"
+                                               VerticalAlignment="Center" />
+                                    <TextBox x:Name="TxtCliProxyEndpoint"
+                                             Grid.Row="5"
+                                             Grid.Column="1"
+                                             IsReadOnly="True" />
+
+                                    <TextBlock Grid.Row="6"
+                                               Grid.Column="0"
+                                               Style="{StaticResource LabelStyle}"
+                                               Margin="0,0,12,0"
+                                               Text="Status"
+                                               VerticalAlignment="Center" />
+                                    <TextBlock x:Name="TxtCliProxyStatus"
+                                               Grid.Row="6"
+                                               Grid.Column="1"
+                                               Text="Not configured yet."
+                                               TextWrapping="Wrap"
+                                               VerticalAlignment="Center" />
+                                </Grid>
                             </StackPanel>
                         </Border>
                     </StackPanel>

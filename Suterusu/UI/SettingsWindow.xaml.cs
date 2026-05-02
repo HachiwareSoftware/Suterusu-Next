@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -54,6 +55,7 @@ namespace Suterusu.UI
                 _cliProxyManager, _configManager, _controller, _configSaved,
                 BuildConfigFromInputs,
                 ShowValidation, HideValidation, UpdateCliProxyStatus,
+                GetCliProxyConnectButtonText,
                 _logger, _windowCts.Token,
                 TxtCliProxyVersion, TxtCliProxyInstallPath, TxtCliProxyEndpoint,
                 ChkCliProxyEnabled, ChkCliProxyAutoStart,
@@ -63,7 +65,13 @@ namespace Suterusu.UI
 
             LoadConfig(_configManager.Current);
 
-            _ = _cliProxyOrchestrator.LoadVersionStatusAsync();
+            Loaded += OnSettingsLoaded;
+        }
+
+        private async void OnSettingsLoaded(object sender, RoutedEventArgs e)
+        {
+            Loaded -= OnSettingsLoaded;
+            await _cliProxyOrchestrator.LoadVersionStatusAsync();
         }
 
         // ── Load / Save ───────────────────────────────────────────────────────
@@ -83,6 +91,7 @@ namespace Suterusu.UI
             TxtSystemPrompt.Text              = config.SystemPrompt ?? string.Empty;
 
             var cdp = config.Cdp ?? CdpSettings.CreateDefault();
+            EnsureCdpEventDirectories(cdp);
             ChkCdpEnabled.IsChecked = cdp.Enabled;
             TxtCdpPort.Text = cdp.Port.ToString();
             TxtCdpUrlPattern.Text = cdp.UrlPattern ?? string.Empty;
@@ -92,12 +101,14 @@ namespace Suterusu.UI
             TxtCdpConnectTimeoutMs.Text = cdp.ConnectTimeoutMs.ToString();
 
             var cliProxy = config.CliProxy ?? CliProxySettings.CreateDefault();
+            SetCliProxyProvider(cliProxy.Provider);
+            TxtCliProxyGeminiProjectId.Text = cliProxy.GeminiProjectId ?? string.Empty;
             ChkCliProxyEnabled.IsChecked = cliProxy.Enabled;
             ChkCliProxyAutoStart.IsChecked = cliProxy.AutoStart;
             _cliProxyOrchestrator.UpdateEndpoint(cliProxy);
             UpdateCliProxyStatus(cliProxy.Enabled
-                ? "Configured. Use Start/Test or Connect ChatGPT & Use."
-                : "Disabled. Use Connect ChatGPT & Use to set up.");
+                ? "Configured. Use Start/Test or Connect & Use."
+                : "Disabled. Use Connect & Use to set up.");
 
             _hotkeyBindings[GlobalHotkey.ClearHistory] = HotkeyBindingHelper.NormalizeBindingName(
                 config.ClearHistoryHotkey,
@@ -153,6 +164,28 @@ namespace Suterusu.UI
             SetNotificationMode(config.NotificationMode);
             SetMultiRequestMode(config.MultiRequestMode);
             HideValidation();
+        }
+
+        private void EnsureCdpEventDirectories(CdpSettings cdp)
+        {
+            try
+            {
+                string configuredDirectory = string.IsNullOrWhiteSpace(cdp?.StartupScriptsDirectory)
+                    ? "js/events"
+                    : cdp.StartupScriptsDirectory.Trim();
+
+                string root = Path.IsPathRooted(configuredDirectory)
+                    ? configuredDirectory
+                    : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, configuredDirectory);
+
+                Directory.CreateDirectory(root);
+                Directory.CreateDirectory(Path.Combine(root, "onconnect"));
+                Directory.CreateDirectory(Path.Combine(root, "onload"));
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn("Failed to create CDP event folders: " + ex.Message);
+            }
         }
 
         private AppConfig BuildConfigFromInputs()
@@ -227,10 +260,52 @@ namespace Suterusu.UI
                     Port = currentCliProxy.Port,
                     ApiKey = currentCliProxy.ApiKey,
                     ManagementKey = currentCliProxy.ManagementKey,
+                    Provider = GetCliProxyProvider(),
                     Model = currentCliProxy.Model,
+                    GeminiProjectId = TxtCliProxyGeminiProjectId.Text,
                     OAuthCallbackPort = currentCliProxy.OAuthCallbackPort
                 }
             };
+        }
+
+        private void SetCliProxyProvider(string provider)
+        {
+            string effective = CliProxySettings.IsGeminiProvider(provider)
+                ? CliProxySettings.GeminiProvider
+                : CliProxySettings.CodexProvider;
+
+            foreach (ComboBoxItem item in CboCliProxyProvider.Items)
+            {
+                if (item.Tag is string tag && string.Equals(tag, effective, StringComparison.OrdinalIgnoreCase))
+                {
+                    CboCliProxyProvider.SelectedItem = item;
+                    break;
+                }
+            }
+
+            UpdateCliProxyProviderVisibility();
+        }
+
+        private string GetCliProxyProvider()
+        {
+            if (CboCliProxyProvider.SelectedItem is ComboBoxItem item && item.Tag is string tag)
+                return tag;
+
+            return CliProxySettings.CodexProvider;
+        }
+
+        private void UpdateCliProxyProviderVisibility()
+        {
+            bool gemini = CliProxySettings.IsGeminiProvider(GetCliProxyProvider());
+            TxtCliProxyGeminiProjectId.IsEnabled = gemini;
+            BtnCliProxyConnect.Content = GetCliProxyConnectButtonText();
+        }
+
+        private string GetCliProxyConnectButtonText()
+        {
+            return CliProxySettings.IsGeminiProvider(GetCliProxyProvider())
+                ? "Connect Gemini & Use"
+                : "Connect ChatGPT & Use";
         }
 
         private bool TrySave()
@@ -299,6 +374,9 @@ namespace Suterusu.UI
 
         private async void OnCliProxyRefreshModels(object sender, RoutedEventArgs e)
             => await _cliProxyOrchestrator.OnRefreshModels();
+
+        private void OnCliProxyProviderChanged(object sender, SelectionChangedEventArgs e)
+            => UpdateCliProxyProviderVisibility();
 
         private async void OnCheckForUpdates(object sender, RoutedEventArgs e)
             => await _cliProxyOrchestrator.OnCheckForUpdates();
