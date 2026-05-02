@@ -148,6 +148,25 @@ namespace Suterusu.Services
             if (config?.CliProxy == null)
                 return CliProxyResult.Fail("CLI proxy settings are not configured.");
 
+            var settings = config.CliProxy;
+
+            if (CliProxySettings.IsGeminiProvider(settings.Provider))
+                return await LoginGeminiAsync(settings, cancellationToken).ConfigureAwait(false);
+
+            return await LoginCodexAsync(config, cancellationToken).ConfigureAwait(false);
+        }
+
+        private async Task<CliProxyResult> LoginGeminiAsync(
+            CliProxySettings settings, CancellationToken cancellationToken)
+        {
+            using (var handler = new GeminiOAuthHandler(_logger))
+            {
+                return await handler.LoginAsync(settings, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        private async Task<CliProxyResult> LoginCodexAsync(AppConfig config, CancellationToken cancellationToken)
+        {
             var installResult = await EnsureInstalledAsync(config, cancellationToken).ConfigureAwait(false);
             if (!installResult.Success)
                 return installResult;
