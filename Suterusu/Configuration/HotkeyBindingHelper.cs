@@ -274,7 +274,21 @@ namespace Suterusu.Configuration
                 Keys.Up,
                 Keys.Down,
                 Keys.Left,
-                Keys.Right
+                Keys.Right,
+                Keys.Oem1,
+                Keys.Oem2,
+                Keys.Oem3,
+                Keys.Oem4,
+                Keys.Oem5,
+                Keys.Oem6,
+                Keys.Oem7,
+                Keys.Oem8,
+                Keys.Oem102,
+                Keys.OemClear,
+                Keys.Oemcomma,
+                Keys.OemMinus,
+                Keys.OemPeriod,
+                Keys.Oemplus
             });
 
             return keys.ToArray();
