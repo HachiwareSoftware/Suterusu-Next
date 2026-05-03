@@ -34,7 +34,7 @@ namespace Suterusu.Services
             get
             {
                 var p = new[] { "GOCSPX", "4uHgMPm", "1o7Sk", "geV6Cu5clXFsxl" };
-                return p[0] + "-" + p[1] + p[2] + "-" + p[3];
+                return string.Join("-", p);
             }
         }
         private const string TokenEndpoint = "https://oauth2.googleapis.com/token";

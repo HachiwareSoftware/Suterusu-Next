@@ -395,9 +395,13 @@ namespace Suterusu.Configuration
 
             if (string.IsNullOrWhiteSpace(CliProxy.Model)
                 || (CliProxySettings.IsGeminiProvider(CliProxy.Provider)
-                    && string.Equals(CliProxy.Model, CliProxySettings.DefaultCodexModel, StringComparison.OrdinalIgnoreCase))
+                    && (string.Equals(CliProxy.Model, CliProxySettings.DefaultCodexModel, StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(CliProxy.Model, CliProxySettings.LegacyGeminiProModel, StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(CliProxy.Model, CliProxySettings.LegacyGeminiFlashModel, StringComparison.OrdinalIgnoreCase)))
                 || (CliProxySettings.IsCodexProvider(CliProxy.Provider)
-                    && string.Equals(CliProxy.Model, CliProxySettings.DefaultGeminiModel, StringComparison.OrdinalIgnoreCase)))
+                    && (string.Equals(CliProxy.Model, CliProxySettings.DefaultGeminiModel, StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(CliProxy.Model, CliProxySettings.LegacyGeminiProModel, StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(CliProxy.Model, CliProxySettings.LegacyGeminiFlashModel, StringComparison.OrdinalIgnoreCase))))
             {
                 CliProxy.Model = CliProxySettings.IsGeminiProvider(CliProxy.Provider)
                     ? CliProxySettings.DefaultGeminiModel

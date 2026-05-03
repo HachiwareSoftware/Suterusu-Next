@@ -474,7 +474,7 @@ namespace Suterusu.Tests
         {
             var config = AppConfig.CreateDefault();
             config.CliProxy.Provider = CliProxySettings.CodexProvider;
-            config.CliProxy.Model = "gemini-2.5-pro";
+            config.CliProxy.Model = CliProxySettings.LegacyGeminiProModel;
 
             config.Normalize();
 
@@ -499,7 +499,7 @@ namespace Suterusu.Tests
                     Name = CliProxySettings.GeminiModelEntryName,
                     BaseUrl = "http://127.0.0.1:8317/v1",
                     ApiKey = "secret",
-                    Model = "gemini-2.5-pro"
+                    Model = CliProxySettings.LegacyGeminiProModel
                 },
                 ValidEntry("https://api.openai.com/v1", "gpt-5.4-mini")
             };

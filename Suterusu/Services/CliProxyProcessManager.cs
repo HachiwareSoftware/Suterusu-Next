@@ -245,11 +245,6 @@ namespace Suterusu.Services
                 config.CliProxy.Model = health.Models[0];
             }
 
-            progress?.Report("Testing model...");
-            var test = await TestModelAsync(config, config.CliProxy.Model, cancellationToken).ConfigureAwait(false);
-            if (!test.Success)
-                return CliProxyResult.Fail("CLI proxy model test failed: " + test.Error);
-
             return CliProxyResult.Ok(config.CliProxy.Model);
         }
 

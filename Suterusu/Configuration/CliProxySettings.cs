@@ -9,7 +9,9 @@ namespace Suterusu.Configuration
         public const string GeneratedModelEntryName = "ChatGPT (CLIProxyAPI)";
         public const string GeminiModelEntryName = "Gemini (CLIProxyAPI)";
         public const string DefaultCodexModel = "gpt-5.3-codex";
-        public const string DefaultGeminiModel = "gemini-2.5-pro";
+        public const string DefaultGeminiModel = "gemini-3-flash";
+        public const string LegacyGeminiProModel = "gemini-2.5-pro";
+        public const string LegacyGeminiFlashModel = "gemini-2.5-flash";
         public const string GeminiProvider = "gemini";
         public const string CodexProvider = "codex";
 

@@ -19,10 +19,8 @@ namespace Suterusu.Services
     {
         private readonly HttpClient _httpClient;
         private readonly ILogger _logger;
-        private readonly SemaphoreSlim _socketLock = new SemaphoreSlim(1, 1);
-        private readonly Dictionary<string, string> _persistentScriptIds = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        private ClientWebSocket _socket;
-        private int _messageId;
+        private readonly Dictionary<string, TargetConnection> _connections = new Dictionary<string, TargetConnection>(StringComparer.OrdinalIgnoreCase);
+        private int _connectionGeneration;
 
         public CdpClient(ILogger logger, HttpMessageHandler handler = null)
         {
@@ -30,26 +28,40 @@ namespace Suterusu.Services
             _httpClient = handler == null ? new HttpClient() : new HttpClient(handler);
         }
 
-        public bool IsConnected => _socket != null && _socket.State == WebSocketState.Open;
+        public bool IsConnected => _connections.Values.Any(c => c.IsConnected);
+
+        public int ConnectionGeneration => _connectionGeneration;
 
         public async Task<bool> ConnectAsync(CdpSettings settings, CancellationToken cancellationToken)
         {
-            Disconnect();
-
             using (var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
             {
                 timeoutCts.CancelAfter(settings.ConnectTimeoutMs);
 
                 var targets = await QueryTargetsAsync(settings.Port, timeoutCts.Token).ConfigureAwait(false);
-                CdpTargetInfo target = SelectTarget(targets, settings.UrlPattern, _logger);
-                if (target == null || string.IsNullOrWhiteSpace(target.WebSocketDebuggerUrl))
+                var selectedTargets = SelectTargets(targets, settings.UrlPattern, _logger).ToList();
+                if (selectedTargets.Count == 0)
+                {
+                    Disconnect();
                     return false;
+                }
 
-                _socket = new ClientWebSocket();
-                await _socket.ConnectAsync(new Uri(target.WebSocketDebuggerUrl), timeoutCts.Token).ConfigureAwait(false);
-                _logger.Info("Connected to target: " + target.Title + " | " + target.Url);
+                DisconnectStaleTargets(selectedTargets);
 
-                await SendCommandAsync("Page.enable", new JObject(), timeoutCts.Token).ConfigureAwait(false);
+                foreach (CdpTargetInfo target in selectedTargets)
+                {
+                    if (string.IsNullOrWhiteSpace(target.Id) || _connections.ContainsKey(target.Id))
+                        continue;
+
+                    var connection = new TargetConnection(target);
+                    await connection.Socket.ConnectAsync(new Uri(target.WebSocketDebuggerUrl), timeoutCts.Token).ConfigureAwait(false);
+                    _connections[target.Id] = connection;
+                    _connectionGeneration++;
+                    _logger.Info("Connected to target: " + target.Title + " | " + target.Url);
+
+                    await SendCommandAsync(connection, "Page.enable", new JObject(), timeoutCts.Token).ConfigureAwait(false);
+                }
+
                 return true;
             }
         }
@@ -90,24 +102,30 @@ namespace Suterusu.Services
 
         public static CdpTargetInfo SelectTarget(IEnumerable<CdpTargetInfo> targets, string urlPattern, ILogger logger = null)
         {
+            return SelectTargets(targets, urlPattern, logger).FirstOrDefault();
+        }
+
+        public static IReadOnlyList<CdpTargetInfo> SelectTargets(IEnumerable<CdpTargetInfo> targets, string urlPattern, ILogger logger = null)
+        {
             var pages = (targets ?? Enumerable.Empty<CdpTargetInfo>())
                 .Where(t => string.Equals(t.Type, "page", StringComparison.OrdinalIgnoreCase)
+                    && !string.IsNullOrWhiteSpace(t.Id)
                     && !string.IsNullOrWhiteSpace(t.WebSocketDebuggerUrl)
                     && IsInjectablePage(t.Url))
                 .ToList();
 
             if (string.IsNullOrWhiteSpace(urlPattern))
-                return pages.FirstOrDefault();
+                return pages;
 
             try
             {
                 var regex = new Regex(urlPattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-                return pages.FirstOrDefault(t => regex.IsMatch(t.Url ?? ""));
+                return pages.Where(t => regex.IsMatch(t.Url ?? "")).ToList();
             }
             catch (ArgumentException ex)
             {
                 logger?.Warn("Invalid CDP URL pattern: " + ex.Message);
-                return null;
+                return new List<CdpTargetInfo>();
             }
         }
 
@@ -127,33 +145,42 @@ namespace Suterusu.Services
 
             string expression = BuildEventExpression(source, eventName);
             string scriptKey = BuildPersistentScriptKey(scriptPath, eventName);
+            bool injectedAny = false;
 
-            string previousIdentifier;
-            if (_persistentScriptIds.TryGetValue(scriptKey, out previousIdentifier))
+            foreach (TargetConnection connection in _connections.Values.ToList())
             {
-                await RemovePersistentScriptAsync(previousIdentifier, cancellationToken).ConfigureAwait(false);
-                _persistentScriptIds.Remove(scriptKey);
+                if (!connection.IsConnected)
+                    continue;
+
+                string previousIdentifier;
+                if (connection.PersistentScriptIds.TryGetValue(scriptKey, out previousIdentifier))
+                {
+                    await RemovePersistentScriptAsync(connection, previousIdentifier, cancellationToken).ConfigureAwait(false);
+                    connection.PersistentScriptIds.Remove(scriptKey);
+                }
+
+                var persistParams = new JObject { ["source"] = expression };
+                JObject persistResponse = await SendCommandAsync(connection, "Page.addScriptToEvaluateOnNewDocument", persistParams, cancellationToken).ConfigureAwait(false);
+                if (HasException(persistResponse))
+                    continue;
+
+                string identifier = (string)persistResponse["result"]?["identifier"];
+                if (!string.IsNullOrWhiteSpace(identifier))
+                    connection.PersistentScriptIds[scriptKey] = identifier;
+
+                var evalParams = new JObject
+                {
+                    ["expression"] = expression,
+                    ["userGesture"] = false,
+                    ["awaitPromise"] = false,
+                    ["returnByValue"] = false
+                };
+
+                JObject evalResponse = await SendCommandAsync(connection, "Runtime.evaluate", evalParams, cancellationToken).ConfigureAwait(false);
+                injectedAny = injectedAny || !HasException(evalResponse);
             }
 
-            var persistParams = new JObject { ["source"] = expression };
-            JObject persistResponse = await SendCommandAsync("Page.addScriptToEvaluateOnNewDocument", persistParams, cancellationToken).ConfigureAwait(false);
-            if (HasException(persistResponse))
-                return false;
-
-            string identifier = (string)persistResponse["result"]?["identifier"];
-            if (!string.IsNullOrWhiteSpace(identifier))
-                _persistentScriptIds[scriptKey] = identifier;
-
-            var evalParams = new JObject
-            {
-                ["expression"] = expression,
-                ["userGesture"] = false,
-                ["awaitPromise"] = false,
-                ["returnByValue"] = false
-            };
-
-            JObject evalResponse = await SendCommandAsync("Runtime.evaluate", evalParams, cancellationToken).ConfigureAwait(false);
-            return !HasException(evalResponse);
+            return injectedAny;
         }
 
         public async Task<JObject> SendCommandAsync(string method, JObject parameters, CancellationToken cancellationToken)
@@ -161,10 +188,22 @@ namespace Suterusu.Services
             if (!IsConnected)
                 throw new InvalidOperationException("CDP socket is not connected.");
 
-            await _socketLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+            TargetConnection connection = _connections.Values.FirstOrDefault(c => c.IsConnected);
+            if (connection == null)
+                throw new InvalidOperationException("CDP socket is not connected.");
+
+            return await SendCommandAsync(connection, method, parameters, cancellationToken).ConfigureAwait(false);
+        }
+
+        private async Task<JObject> SendCommandAsync(TargetConnection connection, string method, JObject parameters, CancellationToken cancellationToken)
+        {
+            if (connection == null || !connection.IsConnected)
+                throw new InvalidOperationException("CDP socket is not connected.");
+
+            await connection.SocketLock.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                int id = Interlocked.Increment(ref _messageId);
+                int id = Interlocked.Increment(ref connection.MessageId);
                 var command = new JObject
                 {
                     ["id"] = id,
@@ -173,46 +212,35 @@ namespace Suterusu.Services
                 };
 
                 byte[] data = Encoding.UTF8.GetBytes(command.ToString(Newtonsoft.Json.Formatting.None));
-                await _socket.SendAsync(new ArraySegment<byte>(data), WebSocketMessageType.Text, true, cancellationToken).ConfigureAwait(false);
+                await connection.Socket.SendAsync(new ArraySegment<byte>(data), WebSocketMessageType.Text, true, cancellationToken).ConfigureAwait(false);
 
                 while (true)
                 {
-                    JObject response = await ReceiveJsonAsync(cancellationToken).ConfigureAwait(false);
+                    JObject response = await ReceiveJsonAsync(connection, cancellationToken).ConfigureAwait(false);
                     if ((int?)response["id"] == id)
                         return response;
                 }
             }
             catch
             {
-                Disconnect();
+                Disconnect(connection.Target.Id);
                 throw;
             }
             finally
             {
-                _socketLock.Release();
+                connection.SocketLock.Release();
             }
         }
 
         public void Disconnect()
         {
-            try
-            {
-                if (_socket != null && _socket.State == WebSocketState.Open)
-                    _socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "shutdown", CancellationToken.None).Wait(500);
-            }
-            catch
-            {
-            }
-
-            _socket?.Dispose();
-            _socket = null;
-            _persistentScriptIds.Clear();
+            foreach (string targetId in _connections.Keys.ToList())
+                Disconnect(targetId);
         }
 
         public void Dispose()
         {
             Disconnect();
-            _socketLock.Dispose();
             _httpClient.Dispose();
         }
 
@@ -228,13 +256,13 @@ namespace Suterusu.Services
                 + "\n} catch (_) {} })();";
         }
 
-        private async Task RemovePersistentScriptAsync(string identifier, CancellationToken cancellationToken)
+        private async Task RemovePersistentScriptAsync(TargetConnection connection, string identifier, CancellationToken cancellationToken)
         {
             if (string.IsNullOrWhiteSpace(identifier))
                 return;
 
             var parameters = new JObject { ["identifier"] = identifier };
-            JObject response = await SendCommandAsync("Page.removeScriptToEvaluateOnNewDocument", parameters, cancellationToken).ConfigureAwait(false);
+            JObject response = await SendCommandAsync(connection, "Page.removeScriptToEvaluateOnNewDocument", parameters, cancellationToken).ConfigureAwait(false);
             if (HasException(response))
                 _logger.Warn("Failed to remove previous CDP script registration: " + identifier);
         }
@@ -275,7 +303,37 @@ namespace Suterusu.Services
                 && !url.StartsWith("about:", StringComparison.OrdinalIgnoreCase);
         }
 
-        private async Task<JObject> ReceiveJsonAsync(CancellationToken cancellationToken)
+        private void DisconnectStaleTargets(IReadOnlyList<CdpTargetInfo> selectedTargets)
+        {
+            var selectedIds = new HashSet<string>(selectedTargets.Select(t => t.Id), StringComparer.OrdinalIgnoreCase);
+            foreach (string targetId in _connections.Keys.ToList())
+            {
+                if (!selectedIds.Contains(targetId) || !_connections[targetId].IsConnected)
+                    Disconnect(targetId);
+            }
+        }
+
+        private void Disconnect(string targetId)
+        {
+            TargetConnection connection;
+            if (string.IsNullOrWhiteSpace(targetId) || !_connections.TryGetValue(targetId, out connection))
+                return;
+
+            try
+            {
+                if (connection.Socket.State == WebSocketState.Open)
+                    connection.Socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "shutdown", CancellationToken.None).Wait(500);
+            }
+            catch
+            {
+            }
+
+            connection.Dispose();
+            _connections.Remove(targetId);
+            _connectionGeneration++;
+        }
+
+        private async Task<JObject> ReceiveJsonAsync(TargetConnection connection, CancellationToken cancellationToken)
         {
             byte[] buffer = new byte[8192];
             using (var stream = new MemoryStream())
@@ -283,7 +341,7 @@ namespace Suterusu.Services
                 WebSocketReceiveResult result;
                 do
                 {
-                    result = await _socket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken).ConfigureAwait(false);
+                    result = await connection.Socket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken).ConfigureAwait(false);
                     if (result.MessageType == WebSocketMessageType.Close)
                         throw new WebSocketException("CDP socket closed.");
 
@@ -293,6 +351,36 @@ namespace Suterusu.Services
 
                 string json = Encoding.UTF8.GetString(stream.ToArray());
                 return JObject.Parse(json);
+            }
+        }
+
+        private sealed class TargetConnection : IDisposable
+        {
+            public TargetConnection(CdpTargetInfo target)
+            {
+                Target = target;
+                Socket = new ClientWebSocket();
+                SocketLock = new SemaphoreSlim(1, 1);
+                PersistentScriptIds = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            }
+
+            public CdpTargetInfo Target { get; }
+
+            public ClientWebSocket Socket { get; }
+
+            public SemaphoreSlim SocketLock { get; }
+
+            public Dictionary<string, string> PersistentScriptIds { get; }
+
+            public int MessageId;
+
+            public bool IsConnected => Socket != null && Socket.State == WebSocketState.Open;
+
+            public void Dispose()
+            {
+                Socket.Dispose();
+                SocketLock.Dispose();
+                PersistentScriptIds.Clear();
             }
         }
     }

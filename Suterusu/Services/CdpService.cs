@@ -77,21 +77,20 @@ namespace Suterusu.Services
 
                 try
                 {
-                    if (!_client.IsConnected)
+                    int connectionGeneration = _client.ConnectionGeneration;
+                    bool connected = _client.ConnectAsync(settings, _cts.Token).GetAwaiter().GetResult();
+                    if (connected)
                     {
-                        bool connected = _client.ConnectAsync(settings, _cts.Token).GetAwaiter().GetResult();
-                        if (connected)
-                        {
-                            ResetConnectionFailureState();
+                        ResetConnectionFailureState();
+                        if (connectionGeneration != _client.ConnectionGeneration)
                             _lastScriptsSignature = null;
-                        }
-                        else
-                        {
-                            RecordConnectionFailure(settings, "No matching CDP page target found on 127.0.0.1:" + settings.Port + ".");
-                        }
+                    }
+                    else
+                    {
+                        RecordConnectionFailure(settings, "No matching CDP page target found on 127.0.0.1:" + settings.Port + ".");
                     }
 
-                    if (_client.IsConnected)
+                    if (connected && _client.IsConnected)
                         InjectScriptsIfChanged(settings);
                 }
                 catch (OperationCanceledException)
