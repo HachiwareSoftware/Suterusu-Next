@@ -39,6 +39,11 @@ namespace Suterusu.Services
                         config.Ocr.HfToken,
                         config.Ocr.HfModel);
 
+                case OcrProvider.PaddleX:
+                    return new PaddleXOcrClient(
+                        logger,
+                        config.Ocr.PaddleXUrl);
+
                 case OcrProvider.WindowsOcr:
                     return new WindowsOcrClient(
                         new NLogLogger("Suterusu.OCR.Windows"),

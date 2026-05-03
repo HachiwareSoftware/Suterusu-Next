@@ -6,6 +6,7 @@ namespace Suterusu.Configuration
         Zai,
         Custom,
         HuggingFace,
+        PaddleX,
         WindowsOcr,
         WindowsAi
     }

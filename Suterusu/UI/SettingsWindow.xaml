@@ -505,6 +505,14 @@
                                     <TextBlock Style="{StaticResource HintStyle}" Text="Default: google/ocr" />
                                 </StackPanel>
 
+                                <!-- PaddleX / PP-OCRv5 settings -->
+                                <StackPanel x:Name="PnlPaddleXSettings" Visibility="Collapsed">
+                                    <TextBlock Style="{StaticResource LabelStyle}" Text="Server URL" />
+                                    <TextBox x:Name="TxtOcrPaddleXUrl" />
+                                    <TextBlock Style="{StaticResource HintStyle}" Text="Default: http://localhost:8080. Start with: paddlex --serve --pipeline OCR --host 0.0.0.0 --port 8080" />
+                                    <TextBlock Style="{StaticResource HintStyle}" Margin="0,4,0,0" Text="Uses PaddleX basic serving POST /ocr with PP-OCRv5/General OCR pipelines." />
+                                </StackPanel>
+
                                 <!-- Windows OCR settings -->
                                 <StackPanel x:Name="PnlWindowsOcrSettings" Visibility="Collapsed">
                                     <TextBlock Style="{StaticResource LabelStyle}" Text="Recognition Language" />

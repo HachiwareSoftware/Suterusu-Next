@@ -131,6 +131,7 @@
     <Compile Include="Services\LlamaCppModelsClient.cs" />
     <Compile Include="Services\LlamaCppOcrClient.cs" />
     <Compile Include="Services\OcrClientFactory.cs" />
+    <Compile Include="Services\PaddleXOcrClient.cs" />
     <Compile Include="Services\ZaiOcrClient.cs" />
     <Compile Include="Services\WindowsAiOcrClient.cs" />
     <Compile Include="Services\WindowsOcrClient.cs" />

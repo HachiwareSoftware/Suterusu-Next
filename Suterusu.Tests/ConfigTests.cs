@@ -654,6 +654,49 @@ namespace Suterusu.Tests
                 e.Contains("URL") || e.Contains("token") || e.Contains("API key") || e.Contains("model"));
         }
 
+        [Fact]
+        public void OcrSettings_CreateDefault_PaddleXUrl_UsesLocalServer()
+        {
+            var ocr = OcrSettings.CreateDefault();
+            Assert.Equal("http://localhost:8080", ocr.PaddleXUrl);
+        }
+
+        [Fact]
+        public void Normalize_Ocr_BlankPaddleXUrl_UsesDefault()
+        {
+            var config = AppConfig.CreateDefault();
+            config.Ocr.PaddleXUrl = "   ";
+
+            config.Normalize();
+
+            Assert.Equal("http://localhost:8080", config.Ocr.PaddleXUrl);
+        }
+
+        [Fact]
+        public void Validate_PaddleX_Enabled_RequiresUrl()
+        {
+            var config = new AppConfig
+            {
+                ModelPriority = new List<ModelEntry> { ValidEntry() },
+                Ocr = new OcrSettings
+                {
+                    Enabled = true,
+                    Provider = OcrProvider.PaddleX,
+                    PaddleXUrl = "",
+                    Hotkey = "Shift+F7",
+                    TimeoutMs = 30000
+                },
+                ClearHistoryHotkey = "F6",
+                SendClipboardHotkey = "F7",
+                CopyLastResponseHotkey = "F8",
+                QuitApplicationHotkey = "F12"
+            };
+
+            var errors = config.Validate();
+
+            Assert.Contains(errors, e => e.Contains("PaddleX URL"));
+        }
+
         // -----------------------------------------------------------------------
         // CDP settings
         // -----------------------------------------------------------------------

@@ -32,6 +32,9 @@ namespace Suterusu.Configuration
         public string HfModel { get; set; }
         public string HfUrl { get; set; }
 
+        // PaddleX / PP-OCRv5 basic serving settings
+        public string PaddleXUrl { get; set; }
+
         // Clipboard prompt option
         public bool UseClipboardPrompt { get; set; }
 
@@ -64,6 +67,7 @@ namespace Suterusu.Configuration
             HfToken = "",
             HfModel = "google/ocr",
             HfUrl = "https://api.huggingface.co/v1",
+            PaddleXUrl = "http://localhost:8080",
             UseClipboardPrompt = false,
             WindowsOcrLanguage = "",
             MaxTokens = 4096,
@@ -264,6 +268,9 @@ namespace Suterusu.Configuration
 
             if (string.IsNullOrWhiteSpace(Ocr.HfUrl))
                 Ocr.HfUrl = "https://api.huggingface.co/v1";
+
+            if (string.IsNullOrWhiteSpace(Ocr.PaddleXUrl))
+                Ocr.PaddleXUrl = "http://localhost:8080";
 
             if (Ocr.WindowsOcrLanguage != null)
                 Ocr.WindowsOcrLanguage = Ocr.WindowsOcrLanguage.Trim();
@@ -522,6 +529,11 @@ namespace Suterusu.Configuration
                 {
                     if (string.IsNullOrWhiteSpace(Ocr.HfToken))
                         errors.Add("HuggingFace token required when OCR is enabled.");
+                }
+                else if (Ocr.Provider == OcrProvider.PaddleX)
+                {
+                    if (string.IsNullOrWhiteSpace(Ocr.PaddleXUrl))
+                        errors.Add("PaddleX URL required when OCR is enabled.");
                 }
                 // Local Windows OCR providers have no URL/token/model fields.
             }
