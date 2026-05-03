@@ -30,6 +30,7 @@ namespace Suterusu.Tests
 
             Assert.Contains("--login", args);
             Assert.DoesNotContain("--codex-login", args);
+            Assert.DoesNotContain("--no-browser", args);
             Assert.DoesNotContain("--project_id", args);
         }
 

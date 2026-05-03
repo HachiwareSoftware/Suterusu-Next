@@ -151,17 +151,40 @@ namespace Suterusu.Services
             var settings = config.CliProxy;
 
             if (CliProxySettings.IsGeminiProvider(settings.Provider))
-                return await LoginGeminiAsync(settings, cancellationToken).ConfigureAwait(false);
+                return await LoginGeminiAsync(config, cancellationToken).ConfigureAwait(false);
 
             return await LoginCodexAsync(config, cancellationToken).ConfigureAwait(false);
         }
 
         private async Task<CliProxyResult> LoginGeminiAsync(
-            CliProxySettings settings, CancellationToken cancellationToken)
+            AppConfig config, CancellationToken cancellationToken)
         {
-            using (var handler = new GeminiOAuthHandler(_logger))
+            var installResult = await EnsureInstalledAsync(config, cancellationToken).ConfigureAwait(false);
+            if (!installResult.Success)
+                return installResult;
+
+            var writeResult = _configWriter.Write(config);
+            if (!writeResult.Success)
+                return writeResult;
+
+            var settings = config.CliProxy;
+            var args = BuildLoginArguments(settings);
+            var startInfo = CreateStartInfo(settings.ExecutablePath, args, false);
+
+            try
             {
-                return await handler.LoginAsync(settings, cancellationToken).ConfigureAwait(false);
+                using (var process = new Process { StartInfo = startInfo })
+                {
+                    if (!process.Start())
+                        return CliProxyResult.Fail("Failed to start CLI proxy login process.");
+
+                    return await WaitForLoginProcessAsync(process, cancellationToken).ConfigureAwait(false);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Error("CLI proxy Gemini login process failed.", ex);
+                return CliProxyResult.Fail(ex.Message);
             }
         }
 
@@ -253,10 +276,14 @@ namespace Suterusu.Services
             var args = new List<string>
             {
                 "--config", settings.ConfigPath,
-                CliProxySettings.IsGeminiProvider(settings.Provider) ? "--login" : "--codex-login",
-                "--no-browser",
-                "--oauth-callback-port", settings.OAuthCallbackPort.ToString()
+                CliProxySettings.IsGeminiProvider(settings.Provider) ? "--login" : "--codex-login"
             };
+
+            if (!CliProxySettings.IsGeminiProvider(settings.Provider))
+                args.Add("--no-browser");
+
+            args.Add("--oauth-callback-port");
+            args.Add(settings.OAuthCallbackPort.ToString());
 
             if (CliProxySettings.IsGeminiProvider(settings.Provider)
                 && !string.IsNullOrWhiteSpace(settings.GeminiProjectId))
@@ -532,7 +559,7 @@ namespace Suterusu.Services
                 FileName             = executablePath,
                 Arguments            = BuildArguments(args),
                 UseShellExecute      = false,
-                CreateNoWindow       = true,
+                CreateNoWindow       = redirect,
                 RedirectStandardOutput = redirect,
                 RedirectStandardError  = redirect,
                 WorkingDirectory     = Path.GetDirectoryName(executablePath)
