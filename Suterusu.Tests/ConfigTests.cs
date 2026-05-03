@@ -629,6 +629,31 @@ namespace Suterusu.Tests
                 e.Contains("URL") || e.Contains("token") || e.Contains("API key") || e.Contains("model"));
         }
 
+        [Fact]
+        public void Validate_WindowsAiOcr_Enabled_NoRequiredFieldErrors()
+        {
+            var config = new AppConfig
+            {
+                ModelPriority  = new List<ModelEntry> { ValidEntry() },
+                Ocr = new OcrSettings
+                {
+                    Enabled   = true,
+                    Provider  = OcrProvider.WindowsAi,
+                    Hotkey    = "Shift+F7",
+                    TimeoutMs = 30000
+                },
+                ClearHistoryHotkey     = "F6",
+                SendClipboardHotkey    = "F7",
+                CopyLastResponseHotkey = "F8",
+                QuitApplicationHotkey  = "F12"
+            };
+
+            var errors = config.Validate();
+
+            Assert.DoesNotContain(errors, e =>
+                e.Contains("URL") || e.Contains("token") || e.Contains("API key") || e.Contains("model"));
+        }
+
         // -----------------------------------------------------------------------
         // CDP settings
         // -----------------------------------------------------------------------

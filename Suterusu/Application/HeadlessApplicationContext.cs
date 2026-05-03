@@ -165,6 +165,12 @@ namespace Suterusu.Application
                     case OcrProvider.HuggingFace:
                         ocrModel = _config.Ocr.HfModel;
                         break;
+                    case OcrProvider.WindowsOcr:
+                        ocrModel = "local-windows-media-ocr";
+                        break;
+                    case OcrProvider.WindowsAi:
+                        ocrModel = "local-windows-ai-text-recognizer";
+                        break;
                 }
             }
             _logger.Info($"OCR: {ocrProvider} (model={ocrModel})");

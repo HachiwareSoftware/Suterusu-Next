@@ -22,11 +22,13 @@ namespace Suterusu.UI
         private readonly TextBox _nameBox;
         private readonly TextBox _urlBox;
         private readonly PasswordBox _keyBox;
+        private readonly TextBox _keyTextBox;
         private readonly ComboBox _modelCombo;
         private readonly Button _fetchButton;
         private readonly ComboBox _presetCombo;
         private readonly Action<string> _showValidation;
         private readonly Action _hideValidation;
+        private readonly Func<string> _getCliProxyApiKey;
         private readonly ILogger _logger;
 
         private int _editingIndex = -2; // -2 = not editing, -1 = adding, >= 0 = editing
@@ -43,11 +45,13 @@ namespace Suterusu.UI
             TextBox nameBox,
             TextBox urlBox,
             PasswordBox keyBox,
+            TextBox keyTextBox,
             ComboBox modelCombo,
             Button fetchButton,
             ComboBox presetCombo,
             Action<string> showValidation,
             Action hideValidation,
+            Func<string> getCliProxyApiKey,
             ILogger logger)
         {
             _list = list;
@@ -56,11 +60,13 @@ namespace Suterusu.UI
             _nameBox = nameBox;
             _urlBox = urlBox;
             _keyBox = keyBox;
+            _keyTextBox = keyTextBox;
             _modelCombo = modelCombo;
             _fetchButton = fetchButton;
             _presetCombo = presetCombo;
             _showValidation = showValidation;
             _hideValidation = hideValidation;
+            _getCliProxyApiKey = getCliProxyApiKey;
             _logger = logger;
 
             _presetCombo.ItemsSource = EndpointPreset.GetPresets();
@@ -144,7 +150,7 @@ namespace Suterusu.UI
         {
             string name = _nameBox.Text.Trim();
             string url = _urlBox.Text.Trim();
-            string apiKey = _keyBox.Password;
+            string apiKey = GetApiKey();
             string model = _modelCombo.Text.Trim();
 
             if (string.IsNullOrWhiteSpace(url))
@@ -207,7 +213,7 @@ namespace Suterusu.UI
                 modelsUrl = modelsUrl.Substring(0, modelsUrl.Length - "/chat/completions".Length);
             modelsUrl += "/models";
 
-            string apiKey = _keyBox.Password;
+            string apiKey = GetApiKey();
 
             _fetchButton.IsEnabled = false;
             _fetchButton.Content = "Fetching...";
@@ -278,6 +284,16 @@ namespace Suterusu.UI
                 _nameBox.Text = preset.Name;
             if (string.IsNullOrWhiteSpace(_modelCombo.Text) && !string.IsNullOrWhiteSpace(preset.DefaultModel))
                 _modelCombo.Text = preset.DefaultModel;
+            if (string.IsNullOrWhiteSpace(GetApiKey()))
+            {
+                string key = !string.IsNullOrWhiteSpace(preset.DefaultApiKey)
+                    ? preset.DefaultApiKey
+                    : string.Equals(preset.Name, "CLIProxyAPI", StringComparison.OrdinalIgnoreCase)
+                        ? _getCliProxyApiKey?.Invoke() ?? string.Empty
+                        : string.Empty;
+                if (!string.IsNullOrWhiteSpace(key))
+                    _keyBox.Password = key;
+            }
             _isApplyingPreset = false;
         }
 
@@ -303,6 +319,7 @@ namespace Suterusu.UI
             _nameBox.Text = string.Empty;
             _urlBox.Text = string.Empty;
             _keyBox.Clear();
+            _keyTextBox.Text = string.Empty;
             _modelCombo.Text = string.Empty;
             _modelCombo.Items.Clear();
 
@@ -316,6 +333,7 @@ namespace Suterusu.UI
             _nameBox.Text = entry.Name ?? string.Empty;
             _urlBox.Text = entry.BaseUrl ?? string.Empty;
             _keyBox.Password = entry.ApiKey ?? string.Empty;
+            _keyTextBox.Text = entry.ApiKey ?? string.Empty;
             _modelCombo.Items.Clear();
             _modelCombo.Text = entry.Model ?? string.Empty;
 
@@ -342,6 +360,29 @@ namespace Suterusu.UI
         {
             _editPanel.Visibility = Visibility.Collapsed;
             _editingIndex = -2;
+        }
+
+        public string GetApiKey()
+        {
+            return _keyTextBox.Visibility == Visibility.Visible
+                ? _keyTextBox.Text ?? string.Empty
+                : _keyBox.Password ?? string.Empty;
+        }
+
+        public void ToggleApiKeyVisibility()
+        {
+            if (_keyBox.Visibility == Visibility.Visible)
+            {
+                _keyTextBox.Text = _keyBox.Password;
+                _keyBox.Visibility = Visibility.Collapsed;
+                _keyTextBox.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                _keyBox.Password = _keyTextBox.Text ?? string.Empty;
+                _keyTextBox.Visibility = Visibility.Collapsed;
+                _keyBox.Visibility = Visibility.Visible;
+            }
         }
     }
 }

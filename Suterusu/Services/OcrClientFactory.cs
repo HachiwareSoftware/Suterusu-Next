@@ -44,6 +44,10 @@ namespace Suterusu.Services
                         new NLogLogger("Suterusu.OCR.Windows"),
                         config.Ocr.WindowsOcrLanguage);
 
+                case OcrProvider.WindowsAi:
+                    return new WindowsAiOcrClient(
+                        new NLogLogger("Suterusu.OCR.WindowsAI"));
+
                 default:
                     return null;
             }

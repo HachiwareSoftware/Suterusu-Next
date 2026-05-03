@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using Suterusu.Services;
 using Xunit;
 
@@ -116,6 +118,23 @@ namespace Suterusu.Tests
 
             Assert.True(availability.HasSettingsWarning);
             Assert.Contains("recognizers are not installed", availability.BuildConfigurationValidationError());
+        }
+
+        [Fact]
+        public async Task WindowsAiOcrClient_MissingHelper_ReturnsFailure()
+        {
+            var client = new WindowsAiOcrClient(
+                new StubLogger(),
+                @"Z:\missing\Suterusu.WindowsAiOcr.exe");
+
+            var result = await client.RunOcrAsync(
+                new byte[] { 1, 2, 3 },
+                string.Empty,
+                1000,
+                CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.Contains("helper not found", result.Error);
         }
 
         // ── Stub ─────────────────────────────────────────────────────────────────

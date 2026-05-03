@@ -523,7 +523,7 @@ namespace Suterusu.Configuration
                     if (string.IsNullOrWhiteSpace(Ocr.HfToken))
                         errors.Add("HuggingFace token required when OCR is enabled.");
                 }
-                // OcrProvider.WindowsOcr: no required fields (local, offline)
+                // Local Windows OCR providers have no URL/token/model fields.
             }
 
             if (CliProxy?.Enabled == true)

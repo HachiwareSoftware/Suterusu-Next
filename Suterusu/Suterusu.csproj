@@ -132,6 +132,7 @@
     <Compile Include="Services\LlamaCppOcrClient.cs" />
     <Compile Include="Services\OcrClientFactory.cs" />
     <Compile Include="Services\ZaiOcrClient.cs" />
+    <Compile Include="Services\WindowsAiOcrClient.cs" />
     <Compile Include="Services\WindowsOcrClient.cs" />
     <Compile Include="Services\ScreenCaptureService.cs" />
     <Compile Include="Services\ILogger.cs" />

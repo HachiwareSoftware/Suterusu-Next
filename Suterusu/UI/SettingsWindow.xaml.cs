@@ -44,8 +44,10 @@ namespace Suterusu.UI
             _modelEditor = new ModelPriorityEditor(
                 LstPriority, PnlEntryEdit, LblEntryEditTitle,
                 TxtEntryName, TxtEntryBaseUrl, PwdEntryApiKey,
-                CboEntryModel, BtnFetchEntryModels, CboEntryPreset,
-                ShowValidation, HideValidation, _logger);
+                TxtEntryApiKey, CboEntryModel, BtnFetchEntryModels, CboEntryPreset,
+                ShowValidation, HideValidation,
+                () => _configManager.Current?.CliProxy?.ApiKey ?? string.Empty,
+                _logger);
 
             _ocrHelper = new OcrSettingsHelper(
                 CboWindowsOcrLanguage, TxtWindowsOcrStatus,
@@ -414,6 +416,12 @@ namespace Suterusu.UI
         private void OnDiscardEntry(object sender, RoutedEventArgs e)
             => _modelEditor.OnDiscard();
 
+        private void OnToggleApiKeyVisibility(object sender, RoutedEventArgs e)
+        {
+            _modelEditor.ToggleApiKeyVisibility();
+            BtnToggleApiKey.Content = TxtEntryApiKey.Visibility == Visibility.Visible ? "Hide" : "Show";
+        }
+
         // ── Hotkey capture ────────────────────────────────────────────────────
 
         private void OnHotkeyButtonClick(object sender, RoutedEventArgs e)
@@ -570,6 +578,7 @@ namespace Suterusu.UI
             CboOcrProvider.Items.Add(new ComboBoxItem { Content = "Custom",      Tag = OcrProvider.Custom      });
             CboOcrProvider.Items.Add(new ComboBoxItem { Content = "HuggingFace", Tag = OcrProvider.HuggingFace });
             CboOcrProvider.Items.Add(new ComboBoxItem { Content = "Windows OCR", Tag = OcrProvider.WindowsOcr  });
+            CboOcrProvider.Items.Add(new ComboBoxItem { Content = "Windows AI OCR", Tag = OcrProvider.WindowsAi });
             CboOcrProvider.SelectedIndex = 0;
         }
 
@@ -594,16 +603,18 @@ namespace Suterusu.UI
                 return;
 
             bool isWindows = provider == OcrProvider.WindowsOcr;
+            bool isWindowsAi = provider == OcrProvider.WindowsAi;
 
             PnlLlamaCppSettings.Visibility     = provider == OcrProvider.LlamaCpp    ? Visibility.Visible : Visibility.Collapsed;
             PnlZaiSettings.Visibility          = provider == OcrProvider.Zai         ? Visibility.Visible : Visibility.Collapsed;
             PnlCustomSettings.Visibility       = provider == OcrProvider.Custom       ? Visibility.Visible : Visibility.Collapsed;
             PnlHfSettings.Visibility           = provider == OcrProvider.HuggingFace ? Visibility.Visible : Visibility.Collapsed;
             PnlWindowsOcrSettings.Visibility   = isWindows                           ? Visibility.Visible : Visibility.Collapsed;
+            PnlWindowsAiSettings.Visibility    = isWindowsAi                         ? Visibility.Visible : Visibility.Collapsed;
 
-            // Prompt is irrelevant for Windows OCR — hide it
+            // Local Windows OCR engines do not use prompts.
             if (PnlOcrPromptRow != null)
-                PnlOcrPromptRow.Visibility = isWindows ? Visibility.Collapsed : Visibility.Visible;
+                PnlOcrPromptRow.Visibility = (isWindows || isWindowsAi) ? Visibility.Collapsed : Visibility.Visible;
 
             if (_ocrHelper != null)
                 _ocrHelper.UpdateStatus();

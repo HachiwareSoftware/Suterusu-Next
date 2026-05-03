@@ -220,7 +220,19 @@
                                         <TextBlock Style="{StaticResource LabelStyle}" Text="Base URL" />
                                         <TextBox x:Name="TxtEntryBaseUrl" />
                                         <TextBlock Style="{StaticResource LabelStyle}" Text="API Key" />
-                                        <PasswordBox x:Name="PwdEntryApiKey" />
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <PasswordBox x:Name="PwdEntryApiKey" Grid.Column="0" />
+                                            <TextBox x:Name="TxtEntryApiKey" Grid.Column="0" Visibility="Collapsed" />
+                                            <Button x:Name="BtnToggleApiKey" Grid.Column="1"
+                                                    Content="Show"
+                                                    Style="{StaticResource SecondaryButtonStyle}"
+                                                    Click="OnToggleApiKeyVisibility"
+                                                    Margin="4,0,0,0" Padding="8,2" />
+                                        </Grid>
                                          <StackPanel Orientation="Horizontal" Margin="0,4,0,2">
                                              <TextBlock Style="{StaticResource LabelStyle}" Text="Model" VerticalAlignment="Center" Margin="0" />
                                              <Button x:Name="BtnFetchEntryModels"
@@ -510,12 +522,18 @@
                                                Margin="0,4,0,0"
                                                Visibility="Collapsed" />
                                     <TextBlock Style="{StaticResource HintStyle}" Text="Local, offline. No API key required. Max region: 2000×2000 px." />
-                                    <TextBlock Style="{StaticResource HintStyle}" Margin="0,4,0,0"
-                                               Text="Add language packs via: Settings > Time &amp; Language > Language > Add a language" />
+                                     <TextBlock Style="{StaticResource HintStyle}" Margin="0,4,0,0"
+                                                Text="Add language packs via: Settings > Time &amp; Language > Language > Add a language" />
+                                 </StackPanel>
+
+                                <!-- Windows AI OCR settings -->
+                                <StackPanel x:Name="PnlWindowsAiSettings" Visibility="Collapsed">
+                                    <TextBlock Style="{StaticResource HintStyle}"
+                                                Text="Uses Windows App SDK TextRecognizer via a helper process. Requires Copilot+ PC with NPU. Local and offline when available. Optional — only included in the full release package." />
                                 </StackPanel>
 
-                                <!-- Prompt row (hidden when Windows OCR is active) -->
-                                <StackPanel x:Name="PnlOcrPromptRow">
+                                 <!-- Prompt row (hidden when Windows OCR is active) -->
+                                 <StackPanel x:Name="PnlOcrPromptRow">
                                     <TextBlock Style="{StaticResource LabelStyle}" Text="Prompt" />
                                     <TextBox x:Name="TxtOcrPrompt" />
 

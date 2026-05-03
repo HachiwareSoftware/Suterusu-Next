@@ -11,6 +11,7 @@ namespace Suterusu.Models
         public string BaseUrl { get; set; }
         public string DefaultModel { get; set; }
         public bool RequiresApiKey { get; set; }
+        public string DefaultApiKey { get; set; }
         public string Description { get; set; }
 
         /// <summary>
@@ -59,6 +60,14 @@ namespace Suterusu.Models
                     DefaultModel = "default",
                     RequiresApiKey = false,
                     Description = "Local llama.cpp server - Lightweight local inference"
+                },
+                new EndpointPreset
+                {
+                    Name = "CLIProxyAPI",
+                    BaseUrl = "http://127.0.0.1:8317/v1",
+                    DefaultModel = "",
+                    RequiresApiKey = true,
+                    Description = "Local CLIProxyAPI instance - Uses existing credentials"
                 },
                 new EndpointPreset
                 {
