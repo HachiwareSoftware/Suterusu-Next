@@ -535,7 +535,7 @@
                                  <!-- Prompt row (hidden when Windows OCR is active) -->
                                  <StackPanel x:Name="PnlOcrPromptRow">
                                     <TextBlock Style="{StaticResource LabelStyle}" Text="Prompt" />
-                                    <TextBox x:Name="TxtOcrPrompt" />
+                                    <TextBox x:Name="TxtOcrPrompt" Height="80" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Visible" />
 
                                     <CheckBox x:Name="ChkOcrUseClipboardPrompt" Content="Use clipboard text as prompt if not empty" Margin="0,6,0,0" />
                                 </StackPanel>
