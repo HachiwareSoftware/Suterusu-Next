@@ -15,6 +15,7 @@ namespace Suterusu.Services
         private AppConfig _config;
         private bool _started;
         private string _lastFailureMessage;
+        private string _lastScriptsSignature;
         private int _failureCount;
 
         public CdpService(AppConfig config, ILogger logger)
@@ -82,13 +83,16 @@ namespace Suterusu.Services
                         if (connected)
                         {
                             ResetConnectionFailureState();
-                            _injector.InjectStartupScriptsAsync(_client, settings, _cts.Token).GetAwaiter().GetResult();
+                            _lastScriptsSignature = null;
                         }
                         else
                         {
                             RecordConnectionFailure(settings, "No matching CDP page target found on 127.0.0.1:" + settings.Port + ".");
                         }
                     }
+
+                    if (_client.IsConnected)
+                        InjectScriptsIfChanged(settings);
                 }
                 catch (OperationCanceledException)
                 {
@@ -97,11 +101,13 @@ namespace Suterusu.Services
 
                     RecordConnectionFailure(settings, "CDP probe timed out after " + settings.ConnectTimeoutMs + " ms.");
                     _client.Disconnect();
+                    _lastScriptsSignature = null;
                 }
                 catch (Exception ex)
                 {
                     RecordConnectionFailure(settings, BuildConnectionFailureMessage(settings, ex));
                     _client.Disconnect();
+                    _lastScriptsSignature = null;
                 }
 
                 SleepInterruptibly(settings.RetryIntervalMs);
@@ -160,6 +166,16 @@ namespace Suterusu.Services
 
             _lastFailureMessage = null;
             _failureCount = 0;
+        }
+
+        private void InjectScriptsIfChanged(CdpSettings settings)
+        {
+            string signature = _injector.GetStartupScriptsSignature(settings);
+            if (string.Equals(_lastScriptsSignature, signature, StringComparison.Ordinal))
+                return;
+
+            _injector.InjectStartupScriptsAsync(_client, settings, _cts.Token).GetAwaiter().GetResult();
+            _lastScriptsSignature = signature;
         }
 
         private static string BuildConnectionFailureMessage(CdpSettings settings, Exception ex)

@@ -20,6 +20,7 @@ namespace Suterusu.Services
         private readonly HttpClient _httpClient;
         private readonly ILogger _logger;
         private readonly SemaphoreSlim _socketLock = new SemaphoreSlim(1, 1);
+        private readonly Dictionary<string, string> _persistentScriptIds = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         private ClientWebSocket _socket;
         private int _messageId;
 
@@ -125,11 +126,23 @@ namespace Suterusu.Services
                 return false;
 
             string expression = BuildEventExpression(source, eventName);
+            string scriptKey = BuildPersistentScriptKey(scriptPath, eventName);
+
+            string previousIdentifier;
+            if (_persistentScriptIds.TryGetValue(scriptKey, out previousIdentifier))
+            {
+                await RemovePersistentScriptAsync(previousIdentifier, cancellationToken).ConfigureAwait(false);
+                _persistentScriptIds.Remove(scriptKey);
+            }
 
             var persistParams = new JObject { ["source"] = expression };
             JObject persistResponse = await SendCommandAsync("Page.addScriptToEvaluateOnNewDocument", persistParams, cancellationToken).ConfigureAwait(false);
             if (HasException(persistResponse))
                 return false;
+
+            string identifier = (string)persistResponse["result"]?["identifier"];
+            if (!string.IsNullOrWhiteSpace(identifier))
+                _persistentScriptIds[scriptKey] = identifier;
 
             var evalParams = new JObject
             {
@@ -193,6 +206,7 @@ namespace Suterusu.Services
 
             _socket?.Dispose();
             _socket = null;
+            _persistentScriptIds.Clear();
         }
 
         public void Dispose()
@@ -210,25 +224,25 @@ namespace Suterusu.Services
                 + "const marker = '" + marker + "';\n"
                 + "if (window[marker]) return;\n"
                 + "Object.defineProperty(window, marker, { value: true, configurable: false, enumerable: false });\n"
-                + "const run = (event) => { try {\n"
                 + source
-                + "\n} catch (_) {} };\n"
-                + BuildEventDispatchSource(eventName)
                 + "\n} catch (_) {} })();";
         }
 
-        private static string BuildEventDispatchSource(string eventName)
+        private async Task RemovePersistentScriptAsync(string identifier, CancellationToken cancellationToken)
         {
-            if (eventName == "connect")
-                return "run();";
+            if (string.IsNullOrWhiteSpace(identifier))
+                return;
 
-            if (eventName == "load")
-            {
-                return "if (document.readyState === 'complete' || document.readyState === 'interactive') { run(); }"
-                    + " else { window.addEventListener('load', run, { once: true, capture: true }); }";
-            }
+            var parameters = new JObject { ["identifier"] = identifier };
+            JObject response = await SendCommandAsync("Page.removeScriptToEvaluateOnNewDocument", parameters, cancellationToken).ConfigureAwait(false);
+            if (HasException(response))
+                _logger.Warn("Failed to remove previous CDP script registration: " + identifier);
+        }
 
-            return "window.addEventListener('" + eventName + "', run, { capture: true });";
+        private static string BuildPersistentScriptKey(string scriptPath, string eventName)
+        {
+            string fullPath = Path.GetFullPath(scriptPath ?? "");
+            return (eventName ?? "load").Trim().ToLowerInvariant() + "|" + fullPath;
         }
 
         private static string ComputeShortHash(string value)

@@ -1,6 +1,8 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -75,6 +77,45 @@ namespace Suterusu.Services
             return injected;
         }
 
+        public string GetStartupScriptsSignature(CdpSettings settings)
+        {
+            if (settings == null || !settings.InjectOnStartup)
+                return "disabled";
+
+            string directory = ResolveDirectory(settings.StartupScriptsDirectory);
+            if (!Directory.Exists(directory))
+                return "missing|" + directory;
+
+            string[] eventDirectories = Directory.GetDirectories(directory, "on*", SearchOption.TopDirectoryOnly)
+                .Where(IsSupportedEventDirectory)
+                .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            if (eventDirectories.Length == 0)
+                return "empty|" + directory;
+
+            var builder = new StringBuilder();
+            foreach (string eventDirectory in eventDirectories)
+            {
+                string eventName = Path.GetFileName(eventDirectory).Substring(2).ToLowerInvariant();
+                string[] scripts = Directory.GetFiles(eventDirectory, "*.js", SearchOption.TopDirectoryOnly)
+                    .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+
+                foreach (string script in scripts)
+                {
+                    builder.Append(eventName)
+                        .Append('|')
+                        .Append(Path.GetFullPath(script))
+                        .Append('|')
+                        .Append(ComputeFileHash(script))
+                        .AppendLine();
+                }
+            }
+
+            return builder.Length == 0 ? "empty|" + directory : builder.ToString();
+        }
+
         private static bool IsSupportedEventDirectory(string directory)
         {
             string name = Path.GetFileName(directory) ?? "";
@@ -90,6 +131,20 @@ namespace Suterusu.Services
                 return configuredDirectory;
 
             return Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, configuredDirectory));
+        }
+
+        private static string ComputeFileHash(string path)
+        {
+            using (var sha = SHA256.Create())
+            using (var stream = File.OpenRead(path))
+            {
+                byte[] hash = sha.ComputeHash(stream);
+                var builder = new StringBuilder(hash.Length * 2);
+                foreach (byte b in hash)
+                    builder.Append(b.ToString("x2"));
+
+                return builder.ToString();
+            }
         }
     }
 }
