@@ -643,6 +643,49 @@ namespace Suterusu.Tests
         }
 
         [Fact]
+        public void OcrSettings_CreateDefault_OneOcrRuntimePath_IsEmpty()
+        {
+            var ocr = OcrSettings.CreateDefault();
+            Assert.Equal(string.Empty, ocr.OneOcrRuntimePath);
+        }
+
+        [Fact]
+        public void Normalize_Ocr_OneOcrRuntimePath_Trims()
+        {
+            var config = AppConfig.CreateDefault();
+            config.Ocr.OneOcrRuntimePath = "  C:\\OneOCR  ";
+
+            config.Normalize();
+
+            Assert.Equal("C:\\OneOCR", config.Ocr.OneOcrRuntimePath);
+        }
+
+        [Fact]
+        public void Validate_OneOcr_Enabled_NoRequiredFieldErrors()
+        {
+            var config = new AppConfig
+            {
+                ModelPriority = new List<ModelEntry> { ValidEntry() },
+                Ocr = new OcrSettings
+                {
+                    Enabled = true,
+                    Provider = OcrProvider.OneOcr,
+                    Hotkey = "Shift+F7",
+                    TimeoutMs = 30000
+                },
+                ClearHistoryHotkey = "F6",
+                SendClipboardHotkey = "F7",
+                CopyLastResponseHotkey = "F8",
+                QuitApplicationHotkey = "F12"
+            };
+
+            var errors = config.Validate();
+
+            Assert.DoesNotContain(errors, e =>
+                e.Contains("URL") || e.Contains("token") || e.Contains("API key") || e.Contains("model"));
+        }
+
+        [Fact]
         public void OcrSettings_CreateDefault_PaddleXUrl_UsesLocalServer()
         {
             var ocr = OcrSettings.CreateDefault();

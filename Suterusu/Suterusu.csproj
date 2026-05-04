@@ -20,6 +20,7 @@
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
@@ -30,6 +31,7 @@
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
@@ -131,6 +133,9 @@
     <Compile Include="Services\LlamaCppModelsClient.cs" />
     <Compile Include="Services\LlamaCppOcrClient.cs" />
     <Compile Include="Services\OcrClientFactory.cs" />
+    <Compile Include="Services\OneOcrClient.cs" />
+    <Compile Include="Services\OneOcrNative.cs" />
+    <Compile Include="Services\OneOcrRuntimeLocator.cs" />
     <Compile Include="Services\PaddleXOcrClient.cs" />
     <Compile Include="Services\ZaiOcrClient.cs" />
     <Compile Include="Services\WindowsAiOcrClient.cs" />

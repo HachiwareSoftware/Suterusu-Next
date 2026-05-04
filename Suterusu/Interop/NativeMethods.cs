@@ -55,6 +55,9 @@ namespace Suterusu.Interop
         public const int S_FALSE = 1;
         public const int RPC_E_CHANGED_MODE = unchecked((int)0x80010106);
 
+        // DLL loading flags
+        public const uint LOAD_WITH_ALTERED_SEARCH_PATH = 0x00000008;
+
         // GetWindowLong / SetWindowLong
         public const int GWL_EXSTYLE       = -20;
         public const int WS_EX_TOOLWINDOW  = 0x00000080;
@@ -120,6 +123,16 @@ namespace Suterusu.Interop
 
         [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
         public static extern IntPtr GetModuleHandle(string lpModuleName);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern IntPtr LoadLibraryEx(string lpFileName, IntPtr hFile, uint dwFlags);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Ansi, SetLastError = true)]
+        public static extern IntPtr GetProcAddress(IntPtr hModule, string lpProcName);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool FreeLibrary(IntPtr hModule);
 
         [DllImport("kernel32.dll")]
         public static extern bool AllocConsole();

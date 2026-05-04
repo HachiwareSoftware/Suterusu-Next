@@ -35,6 +35,9 @@ namespace Suterusu.Configuration
         // PaddleX / PP-OCRv5 basic serving settings
         public string PaddleXUrl { get; set; }
 
+        // Windows Snipping Tool OneOCR settings. Empty = auto-detect installed Snipping Tool.
+        public string OneOcrRuntimePath { get; set; }
+
         // Clipboard prompt option
         public bool UseClipboardPrompt { get; set; }
 
@@ -68,6 +71,7 @@ namespace Suterusu.Configuration
             HfModel = "google/ocr",
             HfUrl = "https://api.huggingface.co/v1",
             PaddleXUrl = "http://localhost:8080",
+            OneOcrRuntimePath = "",
             UseClipboardPrompt = false,
             WindowsOcrLanguage = "",
             MaxTokens = 4096,
@@ -271,6 +275,11 @@ namespace Suterusu.Configuration
 
             if (string.IsNullOrWhiteSpace(Ocr.PaddleXUrl))
                 Ocr.PaddleXUrl = "http://localhost:8080";
+
+            if (Ocr.OneOcrRuntimePath == null)
+                Ocr.OneOcrRuntimePath = "";
+            else
+                Ocr.OneOcrRuntimePath = Ocr.OneOcrRuntimePath.Trim();
 
             if (Ocr.WindowsOcrLanguage != null)
                 Ocr.WindowsOcrLanguage = Ocr.WindowsOcrLanguage.Trim();

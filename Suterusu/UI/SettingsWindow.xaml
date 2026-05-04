@@ -513,6 +513,14 @@
                                     <TextBlock Style="{StaticResource HintStyle}" Margin="0,4,0,0" Text="Uses PaddleX basic serving POST /ocr with PP-OCRv5/General OCR pipelines." />
                                 </StackPanel>
 
+                                <!-- Windows OneOCR settings -->
+                                <StackPanel x:Name="PnlOneOcrSettings" Visibility="Collapsed">
+                                    <TextBlock Style="{StaticResource LabelStyle}" Text="Runtime Folder (optional)" />
+                                    <TextBox x:Name="TxtOcrOneOcrRuntimePath" />
+                                    <TextBlock Style="{StaticResource HintStyle}" Text="Leave blank to auto-detect Snipping Tool. Folder must contain oneocr.dll, oneocr.onemodel, and onnxruntime.dll." />
+                                    <TextBlock Style="{StaticResource HintStyle}" Margin="0,4,0,0" Text="Local/offline. Uses Windows 11 Snipping Tool OneOCR runtime in-process." />
+                                </StackPanel>
+
                                 <!-- Windows OCR settings -->
                                 <StackPanel x:Name="PnlWindowsOcrSettings" Visibility="Collapsed">
                                     <TextBlock Style="{StaticResource LabelStyle}" Text="Recognition Language" />

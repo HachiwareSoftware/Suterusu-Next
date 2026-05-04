@@ -7,6 +7,7 @@ namespace Suterusu.Configuration
         Custom,
         HuggingFace,
         PaddleX,
+        OneOcr,
         WindowsOcr,
         WindowsAi
     }

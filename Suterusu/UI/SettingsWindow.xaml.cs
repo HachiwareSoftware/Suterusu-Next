@@ -152,6 +152,7 @@ namespace Suterusu.UI
             PwdOcrHfToken.Password = config.Ocr?.HfToken ?? string.Empty;
             TxtOcrHfModel.Text = config.Ocr?.HfModel ?? "google/ocr";
             TxtOcrPaddleXUrl.Text = config.Ocr?.PaddleXUrl ?? "http://localhost:8080";
+            TxtOcrOneOcrRuntimePath.Text = config.Ocr?.OneOcrRuntimePath ?? string.Empty;
             TxtOcrPrompt.Text = config.Ocr?.Prompt ?? "Recognize all text from this image.";
             ChkOcrUseClipboardPrompt.IsChecked = config.Ocr?.UseClipboardPrompt ?? false;
             TxtOcrTimeoutMs.Text = config.Ocr?.TimeoutMs.ToString() ?? "60000";
@@ -239,6 +240,7 @@ namespace Suterusu.UI
                     HfToken            = PwdOcrHfToken.Password,
                     HfModel            = TxtOcrHfModel.Text,
                     PaddleXUrl         = TxtOcrPaddleXUrl.Text,
+                    OneOcrRuntimePath  = TxtOcrOneOcrRuntimePath.Text,
                     UseClipboardPrompt = ChkOcrUseClipboardPrompt.IsChecked ?? false,
                     WindowsOcrLanguage = _ocrHelper.GetSelectedWindowsOcrLanguage()
                 },
@@ -579,6 +581,7 @@ namespace Suterusu.UI
             CboOcrProvider.Items.Add(new ComboBoxItem { Content = "Z.ai",        Tag = OcrProvider.Zai         });
             CboOcrProvider.Items.Add(new ComboBoxItem { Content = "HuggingFace", Tag = OcrProvider.HuggingFace });
             CboOcrProvider.Items.Add(new ComboBoxItem { Content = "PaddleX / PP-OCRv5", Tag = OcrProvider.PaddleX });
+            CboOcrProvider.Items.Add(new ComboBoxItem { Content = "Windows OneOCR (Snipping Tool)", Tag = OcrProvider.OneOcr });
             CboOcrProvider.Items.Add(new ComboBoxItem { Content = "Windows OCR", Tag = OcrProvider.WindowsOcr  });
             CboOcrProvider.Items.Add(new ComboBoxItem { Content = "Windows AI OCR", Tag = OcrProvider.WindowsAi });
             CboOcrProvider.Items.Add(new ComboBoxItem { Content = "Custom",      Tag = OcrProvider.Custom      });
@@ -592,6 +595,7 @@ namespace Suterusu.UI
             PnlCustomSettings.IsEnabled = true;
             PnlHfSettings.IsEnabled = true;
             PnlPaddleXSettings.IsEnabled = true;
+            PnlOneOcrSettings.IsEnabled = true;
             TxtOcrPrompt.IsEnabled = true;
             TxtOcrTimeoutMs.IsEnabled = true;
         }
@@ -603,24 +607,26 @@ namespace Suterusu.UI
 
         private void UpdateOcrProviderVisibility(OcrProvider provider)
         {
-            if (PnlLlamaCppSettings == null || PnlZaiSettings == null || PnlCustomSettings == null || PnlHfSettings == null || PnlPaddleXSettings == null)
+            if (PnlLlamaCppSettings == null || PnlZaiSettings == null || PnlCustomSettings == null || PnlHfSettings == null || PnlPaddleXSettings == null || PnlOneOcrSettings == null)
                 return;
 
             bool isWindows = provider == OcrProvider.WindowsOcr;
             bool isWindowsAi = provider == OcrProvider.WindowsAi;
             bool isPaddleX = provider == OcrProvider.PaddleX;
+            bool isOneOcr = provider == OcrProvider.OneOcr;
 
             PnlLlamaCppSettings.Visibility     = provider == OcrProvider.LlamaCpp    ? Visibility.Visible : Visibility.Collapsed;
             PnlZaiSettings.Visibility          = provider == OcrProvider.Zai         ? Visibility.Visible : Visibility.Collapsed;
             PnlCustomSettings.Visibility       = provider == OcrProvider.Custom       ? Visibility.Visible : Visibility.Collapsed;
             PnlHfSettings.Visibility           = provider == OcrProvider.HuggingFace ? Visibility.Visible : Visibility.Collapsed;
             PnlPaddleXSettings.Visibility      = isPaddleX                          ? Visibility.Visible : Visibility.Collapsed;
+            PnlOneOcrSettings.Visibility       = isOneOcr                           ? Visibility.Visible : Visibility.Collapsed;
             PnlWindowsOcrSettings.Visibility   = isWindows                           ? Visibility.Visible : Visibility.Collapsed;
             PnlWindowsAiSettings.Visibility    = isWindowsAi                         ? Visibility.Visible : Visibility.Collapsed;
 
             // Direct OCR engines do not use prompts.
             if (PnlOcrPromptRow != null)
-                PnlOcrPromptRow.Visibility = (isWindows || isWindowsAi || isPaddleX) ? Visibility.Collapsed : Visibility.Visible;
+                PnlOcrPromptRow.Visibility = (isWindows || isWindowsAi || isPaddleX || isOneOcr) ? Visibility.Collapsed : Visibility.Visible;
 
             if (_ocrHelper != null)
                 _ocrHelper.UpdateStatus();

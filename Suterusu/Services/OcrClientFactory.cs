@@ -44,6 +44,11 @@ namespace Suterusu.Services
                         logger,
                         config.Ocr.PaddleXUrl);
 
+                case OcrProvider.OneOcr:
+                    return new OneOcrClient(
+                        new NLogLogger("Suterusu.OCR.OneOCR"),
+                        config.Ocr.OneOcrRuntimePath);
+
                 case OcrProvider.WindowsOcr:
                     return new WindowsOcrClient(
                         new NLogLogger("Suterusu.OCR.Windows"),
