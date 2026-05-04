@@ -46,6 +46,9 @@ namespace Suterusu.Services
                 var requestBody = new
                 {
                     model = _model,
+                    prompt = string.IsNullOrWhiteSpace(prompt)
+                        ? "Recognize all text from this image."
+                        : prompt,
                     file = $"data:image/png;base64,{base64Image}"
                 };
                 var jsonBody = JsonConvert.SerializeObject(requestBody);

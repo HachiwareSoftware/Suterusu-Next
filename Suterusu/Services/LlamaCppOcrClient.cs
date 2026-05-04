@@ -48,14 +48,20 @@ namespace Suterusu.Services
                 {
                     model = _model,
                     max_tokens = _maxTokens,
-                    messages = new[]
+                    messages = new object[]
                     {
+                        new
+                        {
+                            role = "system",
+                            content = string.IsNullOrWhiteSpace(prompt)
+                                ? "Recognize all text from this image."
+                                : prompt
+                        },
                         new
                         {
                             role = "user",
                             content = new object[]
                             {
-                                new { type = "text", text = prompt },
                                 new { type = "image_url", image_url = new { url = $"data:image/png;base64,{base64Image}" } }
                             }
                         }
