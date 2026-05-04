@@ -38,6 +38,10 @@ namespace Suterusu.Configuration
         // Windows Snipping Tool OneOCR settings. Empty = auto-detect installed Snipping Tool.
         public string OneOcrRuntimePath { get; set; }
 
+        // VLM Chat sends screenshots to configured chat models instead of OCR engines.
+        public bool VlmFallbackEnabled { get; set; }
+        public OcrProvider VlmFallbackProvider { get; set; }
+
         // Clipboard prompt option
         public bool UseClipboardPrompt { get; set; }
 
@@ -72,6 +76,8 @@ namespace Suterusu.Configuration
             HfUrl = "https://api.huggingface.co/v1",
             PaddleXUrl = "http://localhost:8080",
             OneOcrRuntimePath = "",
+            VlmFallbackEnabled = false,
+            VlmFallbackProvider = OcrProvider.OneOcr,
             UseClipboardPrompt = false,
             WindowsOcrLanguage = "",
             MaxTokens = 4096,
@@ -281,6 +287,9 @@ namespace Suterusu.Configuration
             else
                 Ocr.OneOcrRuntimePath = Ocr.OneOcrRuntimePath.Trim();
 
+            if (Ocr.VlmFallbackProvider == OcrProvider.VlmChat)
+                Ocr.VlmFallbackProvider = OcrProvider.OneOcr;
+
             if (Ocr.WindowsOcrLanguage != null)
                 Ocr.WindowsOcrLanguage = Ocr.WindowsOcrLanguage.Trim();
             else
@@ -309,6 +318,12 @@ namespace Suterusu.Configuration
             ModelPriority = ModelPriority
                 .Where(e => !string.IsNullOrWhiteSpace(e.BaseUrl) && !string.IsNullOrWhiteSpace(e.Model))
                 .ToList();
+
+            foreach (var entry in ModelPriority)
+            {
+                if (!Enum.IsDefined(typeof(ModelCapability), entry.Capability))
+                    entry.Capability = ModelCapability.Auto;
+            }
 
             NormalizeCliProxySettings();
             NormalizeCdpSettings();

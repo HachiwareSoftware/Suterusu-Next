@@ -51,6 +51,27 @@ namespace Suterusu.Tests
         }
 
         [Fact]
+        public void BuildVisionRequestMessages_IncludesSystemHistoryPromptAndImage()
+        {
+            var history = new ChatHistory("System prompt", 10);
+            history.AppendSuccessfulTurn("Earlier", "Answer");
+
+            var messages = history.BuildVisionRequestMessages("Read screenshot", new byte[] { 1, 2, 3 });
+
+            Assert.Equal(4, messages.Count);
+            Assert.Equal("system", messages[0].Role);
+            Assert.Equal("System prompt", messages[0].Content);
+            Assert.Equal("Earlier", messages[1].Content);
+            Assert.Equal("Answer", messages[2].Content);
+
+            var parts = Assert.IsType<object[]>(messages[3].Content);
+            var textPart = Assert.IsType<ChatMessageContentPart>(parts[0]);
+            var imagePart = Assert.IsType<ChatMessageContentPart>(parts[1]);
+            Assert.Equal("Read screenshot", textPart.Text);
+            Assert.Equal("data:image/png;base64,AQID", imagePart.ImageUrl.Url);
+        }
+
+        [Fact]
         public void BuildRequestMessages_WithMultipleTurns_OrderIsPreserved()
         {
             var history = new ChatHistory("Sys.", 10);

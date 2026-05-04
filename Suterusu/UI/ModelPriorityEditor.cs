@@ -24,6 +24,7 @@ namespace Suterusu.UI
         private readonly PasswordBox _keyBox;
         private readonly TextBox _keyTextBox;
         private readonly ComboBox _modelCombo;
+        private readonly ComboBox _capabilityCombo;
         private readonly Button _fetchButton;
         private readonly ComboBox _presetCombo;
         private readonly Action<string> _showValidation;
@@ -47,6 +48,7 @@ namespace Suterusu.UI
             PasswordBox keyBox,
             TextBox keyTextBox,
             ComboBox modelCombo,
+            ComboBox capabilityCombo,
             Button fetchButton,
             ComboBox presetCombo,
             Action<string> showValidation,
@@ -62,6 +64,7 @@ namespace Suterusu.UI
             _keyBox = keyBox;
             _keyTextBox = keyTextBox;
             _modelCombo = modelCombo;
+            _capabilityCombo = capabilityCombo;
             _fetchButton = fetchButton;
             _presetCombo = presetCombo;
             _showValidation = showValidation;
@@ -152,6 +155,7 @@ namespace Suterusu.UI
             string url = _urlBox.Text.Trim();
             string apiKey = GetApiKey();
             string model = _modelCombo.Text.Trim();
+            ModelCapability capability = GetCapability();
 
             if (string.IsNullOrWhiteSpace(url))
             {
@@ -172,7 +176,8 @@ namespace Suterusu.UI
                 Name = name,
                 BaseUrl = url.TrimEnd('/'),
                 ApiKey = apiKey,
-                Model = model
+                Model = model,
+                Capability = capability
             };
 
             if (_editingIndex == -1)
@@ -322,6 +327,7 @@ namespace Suterusu.UI
             _keyTextBox.Text = string.Empty;
             _modelCombo.Text = string.Empty;
             _modelCombo.Items.Clear();
+            SetCapability(ModelCapability.Auto);
 
             _isSyncingPreset = true;
             _presetCombo.SelectedIndex = -1;
@@ -336,6 +342,7 @@ namespace Suterusu.UI
             _keyTextBox.Text = entry.ApiKey ?? string.Empty;
             _modelCombo.Items.Clear();
             _modelCombo.Text = entry.Model ?? string.Empty;
+            SetCapability(entry.Capability);
 
             var matchedPreset = _presetCombo.Items
                 .OfType<EndpointPreset>()
@@ -383,6 +390,32 @@ namespace Suterusu.UI
                 _keyTextBox.Visibility = Visibility.Collapsed;
                 _keyBox.Visibility = Visibility.Visible;
             }
+        }
+
+        private ModelCapability GetCapability()
+        {
+            if (_capabilityCombo.SelectedItem is ComboBoxItem item
+                && item.Tag is string raw
+                && Enum.TryParse(raw, out ModelCapability capability))
+            {
+                return capability;
+            }
+
+            return ModelCapability.Auto;
+        }
+
+        private void SetCapability(ModelCapability capability)
+        {
+            foreach (ComboBoxItem item in _capabilityCombo.Items)
+            {
+                if (item.Tag is string raw && Enum.TryParse(raw, out ModelCapability itemCapability) && itemCapability == capability)
+                {
+                    _capabilityCombo.SelectedItem = item;
+                    return;
+                }
+            }
+
+            _capabilityCombo.SelectedIndex = 0;
         }
     }
 }

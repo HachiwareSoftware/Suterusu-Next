@@ -41,42 +41,73 @@ namespace Suterusu.Services
             IReadOnlyList<ChatMessage> messages,
             CancellationToken cancellationToken)
         {
+            var requestMessages = new List<ChatRequestMessage>();
+            foreach (var message in messages)
+                requestMessages.Add(ChatRequestMessage.FromChatMessage(message));
+
+            return await SendRequestAsync(config, requestMessages, false, cancellationToken).ConfigureAwait(false);
+        }
+
+        public async Task<AiResponseResult> SendVisionAsync(
+            AppConfig config,
+            IReadOnlyList<ChatRequestMessage> messages,
+            CancellationToken cancellationToken)
+        {
+            return await SendRequestAsync(config, messages, true, cancellationToken).ConfigureAwait(false);
+        }
+
+        private async Task<AiResponseResult> SendRequestAsync(
+            AppConfig config,
+            IReadOnlyList<ChatRequestMessage> messages,
+            bool visionOnly,
+            CancellationToken cancellationToken)
+        {
             _logger.Debug($"MultiRequestMode={config.MultiRequestMode}");
 
             if (config.MultiRequestMode == MultiRequestMode.Sequential)
             {
                 _logger.Debug("Using sequential mode");
-                return await SendSequentialAsync(config, messages, cancellationToken);
+                return await SendSequentialAsync(config, messages, visionOnly, cancellationToken);
             }
 
             if (config.MultiRequestMode == MultiRequestMode.RoundRobin)
             {
                 _logger.Debug("Using round-robin mode");
-                return await SendRoundRobinAsync(config, messages, cancellationToken);
+                return await SendRoundRobinAsync(config, messages, visionOnly, cancellationToken);
             }
 
             if (config.MultiRequestMode == MultiRequestMode.Fastest)
             {
                 _logger.Debug("Using fastest mode");
-                return await SendFastestAsync(config, messages, cancellationToken);
+                return await SendFastestAsync(config, messages, visionOnly, cancellationToken);
             }
 
             _logger.Debug("No recognized mode; defaulting to sequential");
-            return await SendSequentialAsync(config, messages, cancellationToken);
+            return await SendSequentialAsync(config, messages, visionOnly, cancellationToken);
         }
 
-        private static List<EndpointConfig> GetEndpoints(AppConfig config)
+        private static List<EndpointConfig> GetEndpoints(AppConfig config, bool visionOnly = false)
         {
-            return config.ModelPriority?.ConvertAll(e => e.ToEndpointConfig()) ?? new List<EndpointConfig>();
+            var endpoints = config.ModelPriority?.ConvertAll(e => e.ToEndpointConfig()) ?? new List<EndpointConfig>();
+            return visionOnly
+                ? endpoints.FindAll(e => e.Capability != ModelCapability.TextOnly)
+                : endpoints;
         }
+
+        private static AiResponseResult FailNoVisionModels()
+            => AiResponseResult.Fail("No vision-capable model entries are configured.");
 
         private async Task<AiResponseResult> SendSequentialAsync(
             AppConfig config,
-            IReadOnlyList<ChatMessage> messages,
+            IReadOnlyList<ChatRequestMessage> messages,
+            bool visionOnly,
             CancellationToken cancellationToken)
         {
             var errors = new List<string>();
-            var endpoints = GetEndpoints(config);
+            var endpoints = GetEndpoints(config, visionOnly);
+
+            if (visionOnly && endpoints.Count == 0)
+                return FailNoVisionModels();
 
             foreach (var endpoint in endpoints)
             {
@@ -95,7 +126,8 @@ namespace Suterusu.Services
                 errors.Add($"[{endpoint.Name}] {endpointResult.Error}");
             }
 
-            string summary = "All endpoints failed: " + string.Join(
+            string prefix = visionOnly ? "No vision-capable model succeeded. Last errors: " : "All endpoints failed: ";
+            string summary = prefix + string.Join(
                 "; ", errors);
             _logger.Error(summary);
             return AiResponseResult.Fail(summary);
@@ -103,13 +135,16 @@ namespace Suterusu.Services
 
         private async Task<AiResponseResult> SendRoundRobinAsync(
             AppConfig config,
-            IReadOnlyList<ChatMessage> messages,
+            IReadOnlyList<ChatRequestMessage> messages,
+            bool visionOnly,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             var startIndex = config.RoundRobinIndex;
-            var endpoints = GetEndpoints(config);
+            var endpoints = GetEndpoints(config, visionOnly);
+            if (visionOnly && endpoints.Count == 0)
+                return FailNoVisionModels();
             int attempts = 0;
 
             while (attempts < endpoints.Count)
@@ -133,13 +168,17 @@ namespace Suterusu.Services
                 attempts++;
             }
 
-            _logger.Error("All round-robin endpoints failed");
-            return AiResponseResult.Fail("All round-robin endpoints failed.");
+            string roundRobinError = visionOnly
+                ? "No vision-capable model succeeded. Last errors: all eligible round-robin endpoints failed."
+                : "All round-robin endpoints failed.";
+            _logger.Error(roundRobinError);
+            return AiResponseResult.Fail(roundRobinError);
         }
 
         private async Task<AiResponseResult> SendFastestAsync(
             AppConfig config,
-            IReadOnlyList<ChatMessage> messages,
+            IReadOnlyList<ChatRequestMessage> messages,
+            bool visionOnly,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -151,7 +190,11 @@ namespace Suterusu.Services
                 var allModelTasks = new List<Task<AiSingleAttemptResult>>();
                 var modelNames = new List<string>();
 
-                foreach (var endpoint in GetEndpoints(config))
+                var endpoints = GetEndpoints(config, visionOnly);
+                if (visionOnly && endpoints.Count == 0)
+                    return FailNoVisionModels();
+
+                foreach (var endpoint in endpoints)
                 {
                     foreach (var model in endpoint.Models)
                     {
@@ -196,15 +239,18 @@ namespace Suterusu.Services
                     _logger.Warn($"Fastest mode: model {failedModel} failed ({result.Error}), waiting for next.");
                 }
 
-                _logger.Error("Fastest mode: all models failed.");
-                return AiResponseResult.Fail("Fastest mode: all models failed.");
+                string fastestError = visionOnly
+                    ? "No vision-capable model succeeded. Last errors: fastest mode all eligible models failed."
+                    : "Fastest mode: all models failed.";
+                _logger.Error(fastestError);
+                return AiResponseResult.Fail(fastestError);
             }
         }
 
         private async Task<AiEndpointAttemptResult> SendToEndpointAsync(
             EndpointConfig endpoint,
             AppConfig config,
-            IReadOnlyList<ChatMessage> messages,
+            IReadOnlyList<ChatRequestMessage> messages,
             CancellationToken cancellationToken)
         {
             foreach (var model in endpoint.Models)
@@ -229,7 +275,7 @@ namespace Suterusu.Services
             string model,
             EndpointConfig endpoint,
             AppConfig config,
-            IReadOnlyList<ChatMessage> messages,
+            IReadOnlyList<ChatRequestMessage> messages,
             CancellationToken cancellationToken)
         {
             CancellationTokenSource timeoutCts = null;
@@ -239,7 +285,7 @@ namespace Suterusu.Services
                 var request = new ChatCompletionRequest
                 {
                     Model    = model,
-                    Messages = new List<ChatMessage>(messages)
+                    Messages = new List<ChatRequestMessage>(messages)
                 };
 
                 string json    = JsonSettings.SerializeCompact(request);

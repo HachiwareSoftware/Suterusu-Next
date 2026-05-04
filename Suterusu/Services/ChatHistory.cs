@@ -54,6 +54,31 @@ namespace Suterusu.Services
             }
         }
 
+        public IReadOnlyList<ChatRequestMessage> BuildVisionRequestMessages(string prompt, byte[] imageData)
+        {
+            lock (_lock)
+            {
+                var messages = new List<ChatRequestMessage>();
+
+                if (!string.IsNullOrEmpty(SystemPrompt))
+                    messages.Add(new ChatRequestMessage("system", SystemPrompt));
+
+                foreach (var turn in _turns)
+                    messages.Add(ChatRequestMessage.FromChatMessage(turn));
+
+                string base64Image = System.Convert.ToBase64String(imageData);
+                messages.Add(new ChatRequestMessage(
+                    "user",
+                    new object[]
+                    {
+                        ChatMessageContentPart.TextPart(prompt),
+                        ChatMessageContentPart.ImageUrlPart("data:image/png;base64," + base64Image)
+                    }));
+
+                return messages.AsReadOnly();
+            }
+        }
+
         public void AppendSuccessfulTurn(string userText, string assistantText)
         {
             lock (_lock)

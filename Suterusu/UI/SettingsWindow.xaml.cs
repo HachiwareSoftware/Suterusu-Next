@@ -44,7 +44,7 @@ namespace Suterusu.UI
             _modelEditor = new ModelPriorityEditor(
                 LstPriority, PnlEntryEdit, LblEntryEditTitle,
                 TxtEntryName, TxtEntryBaseUrl, PwdEntryApiKey,
-                TxtEntryApiKey, CboEntryModel, BtnFetchEntryModels, CboEntryPreset,
+                TxtEntryApiKey, CboEntryModel, CboEntryCapability, BtnFetchEntryModels, CboEntryPreset,
                 ShowValidation, HideValidation,
                 () => _configManager.Current?.CliProxy?.ApiKey ?? string.Empty,
                 _logger);
@@ -153,6 +153,8 @@ namespace Suterusu.UI
             TxtOcrHfModel.Text = config.Ocr?.HfModel ?? "google/ocr";
             TxtOcrPaddleXUrl.Text = config.Ocr?.PaddleXUrl ?? "http://localhost:8080";
             TxtOcrOneOcrRuntimePath.Text = config.Ocr?.OneOcrRuntimePath ?? string.Empty;
+            ChkVlmFallbackEnabled.IsChecked = config.Ocr?.VlmFallbackEnabled ?? false;
+            SetVlmFallbackProvider(config.Ocr?.VlmFallbackProvider ?? OcrProvider.OneOcr);
             TxtOcrPrompt.Text = config.Ocr?.Prompt ?? "Recognize all text from this image.";
             ChkOcrUseClipboardPrompt.IsChecked = config.Ocr?.UseClipboardPrompt ?? false;
             TxtOcrTimeoutMs.Text = config.Ocr?.TimeoutMs.ToString() ?? "60000";
@@ -241,6 +243,8 @@ namespace Suterusu.UI
                     HfModel            = TxtOcrHfModel.Text,
                     PaddleXUrl         = TxtOcrPaddleXUrl.Text,
                     OneOcrRuntimePath  = TxtOcrOneOcrRuntimePath.Text,
+                    VlmFallbackEnabled = ChkVlmFallbackEnabled.IsChecked ?? false,
+                    VlmFallbackProvider = GetVlmFallbackProvider(),
                     UseClipboardPrompt = ChkOcrUseClipboardPrompt.IsChecked ?? false,
                     WindowsOcrLanguage = _ocrHelper.GetSelectedWindowsOcrLanguage()
                 },
@@ -582,10 +586,21 @@ namespace Suterusu.UI
             CboOcrProvider.Items.Add(new ComboBoxItem { Content = "HuggingFace", Tag = OcrProvider.HuggingFace });
             CboOcrProvider.Items.Add(new ComboBoxItem { Content = "PaddleX / PP-OCRv5", Tag = OcrProvider.PaddleX });
             CboOcrProvider.Items.Add(new ComboBoxItem { Content = "Windows OneOCR (Snipping Tool)", Tag = OcrProvider.OneOcr });
+            CboOcrProvider.Items.Add(new ComboBoxItem { Content = "VLM Chat", Tag = OcrProvider.VlmChat });
             CboOcrProvider.Items.Add(new ComboBoxItem { Content = "Windows OCR", Tag = OcrProvider.WindowsOcr  });
             CboOcrProvider.Items.Add(new ComboBoxItem { Content = "Windows AI OCR", Tag = OcrProvider.WindowsAi });
             CboOcrProvider.Items.Add(new ComboBoxItem { Content = "Custom",      Tag = OcrProvider.Custom      });
             CboOcrProvider.SelectedIndex = 0;
+
+            CboVlmFallbackProvider.Items.Add(new ComboBoxItem { Content = "llama.cpp", Tag = OcrProvider.LlamaCpp });
+            CboVlmFallbackProvider.Items.Add(new ComboBoxItem { Content = "Z.ai", Tag = OcrProvider.Zai });
+            CboVlmFallbackProvider.Items.Add(new ComboBoxItem { Content = "HuggingFace", Tag = OcrProvider.HuggingFace });
+            CboVlmFallbackProvider.Items.Add(new ComboBoxItem { Content = "PaddleX / PP-OCRv5", Tag = OcrProvider.PaddleX });
+            CboVlmFallbackProvider.Items.Add(new ComboBoxItem { Content = "Windows OneOCR (Snipping Tool)", Tag = OcrProvider.OneOcr });
+            CboVlmFallbackProvider.Items.Add(new ComboBoxItem { Content = "Windows OCR", Tag = OcrProvider.WindowsOcr });
+            CboVlmFallbackProvider.Items.Add(new ComboBoxItem { Content = "Windows AI OCR", Tag = OcrProvider.WindowsAi });
+            CboVlmFallbackProvider.Items.Add(new ComboBoxItem { Content = "Custom", Tag = OcrProvider.Custom });
+            CboVlmFallbackProvider.SelectedIndex = 4;
         }
 
         private void OnOcrEnabledChanged(object sender, RoutedEventArgs e)
@@ -596,6 +611,7 @@ namespace Suterusu.UI
             PnlHfSettings.IsEnabled = true;
             PnlPaddleXSettings.IsEnabled = true;
             PnlOneOcrSettings.IsEnabled = true;
+            PnlVlmChatSettings.IsEnabled = true;
             TxtOcrPrompt.IsEnabled = true;
             TxtOcrTimeoutMs.IsEnabled = true;
         }
@@ -607,13 +623,14 @@ namespace Suterusu.UI
 
         private void UpdateOcrProviderVisibility(OcrProvider provider)
         {
-            if (PnlLlamaCppSettings == null || PnlZaiSettings == null || PnlCustomSettings == null || PnlHfSettings == null || PnlPaddleXSettings == null || PnlOneOcrSettings == null)
+            if (PnlLlamaCppSettings == null || PnlZaiSettings == null || PnlCustomSettings == null || PnlHfSettings == null || PnlPaddleXSettings == null || PnlOneOcrSettings == null || PnlVlmChatSettings == null)
                 return;
 
             bool isWindows = provider == OcrProvider.WindowsOcr;
             bool isWindowsAi = provider == OcrProvider.WindowsAi;
             bool isPaddleX = provider == OcrProvider.PaddleX;
             bool isOneOcr = provider == OcrProvider.OneOcr;
+            bool isVlmChat = provider == OcrProvider.VlmChat;
 
             PnlLlamaCppSettings.Visibility     = provider == OcrProvider.LlamaCpp    ? Visibility.Visible : Visibility.Collapsed;
             PnlZaiSettings.Visibility          = provider == OcrProvider.Zai         ? Visibility.Visible : Visibility.Collapsed;
@@ -621,6 +638,7 @@ namespace Suterusu.UI
             PnlHfSettings.Visibility           = provider == OcrProvider.HuggingFace ? Visibility.Visible : Visibility.Collapsed;
             PnlPaddleXSettings.Visibility      = isPaddleX                          ? Visibility.Visible : Visibility.Collapsed;
             PnlOneOcrSettings.Visibility       = isOneOcr                           ? Visibility.Visible : Visibility.Collapsed;
+            PnlVlmChatSettings.Visibility      = isVlmChat                          ? Visibility.Visible : Visibility.Collapsed;
             PnlWindowsOcrSettings.Visibility   = isWindows                           ? Visibility.Visible : Visibility.Collapsed;
             PnlWindowsAiSettings.Visibility    = isWindowsAi                         ? Visibility.Visible : Visibility.Collapsed;
 
@@ -628,8 +646,45 @@ namespace Suterusu.UI
             if (PnlOcrPromptRow != null)
                 PnlOcrPromptRow.Visibility = (isWindows || isWindowsAi || isPaddleX || isOneOcr) ? Visibility.Collapsed : Visibility.Visible;
 
+            UpdateVlmFallbackVisibility();
+
             if (_ocrHelper != null)
                 _ocrHelper.UpdateStatus();
+        }
+
+        private void OnVlmFallbackEnabledChanged(object sender, RoutedEventArgs e)
+        {
+            UpdateVlmFallbackVisibility();
+        }
+
+        private void UpdateVlmFallbackVisibility()
+        {
+            if (PnlVlmFallbackProvider != null)
+                PnlVlmFallbackProvider.Visibility = ChkVlmFallbackEnabled.IsChecked == true
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
+        }
+
+        private OcrProvider GetVlmFallbackProvider()
+        {
+            if (CboVlmFallbackProvider.SelectedItem is ComboBoxItem item && item.Tag is OcrProvider provider && provider != OcrProvider.VlmChat)
+                return provider;
+
+            return OcrProvider.OneOcr;
+        }
+
+        private void SetVlmFallbackProvider(OcrProvider provider)
+        {
+            foreach (ComboBoxItem item in CboVlmFallbackProvider.Items)
+            {
+                if (item.Tag is OcrProvider p && p == provider && p != OcrProvider.VlmChat)
+                {
+                    CboVlmFallbackProvider.SelectedItem = item;
+                    return;
+                }
+            }
+
+            CboVlmFallbackProvider.SelectedIndex = 0;
         }
 
         private void OnOcrDownscaleChanged(object sender, RoutedEventArgs e)

@@ -99,7 +99,7 @@ namespace Suterusu.Services
 
         public void StartOcrSelection()
         {
-            if (_ocrClient == null)
+            if (_configManager.Current.Ocr?.Provider != OcrProvider.VlmChat && _ocrClient == null)
             {
                 _logger.Warn("OCR client not available.");
                 _notifications.NotifyFailure();
@@ -144,7 +144,7 @@ namespace Suterusu.Services
         {
             _logger.Info($"Region selected: {region}");
 
-            if (_ocrClient == null)
+            if (_configManager.Current.Ocr?.Provider != OcrProvider.VlmChat && _ocrClient == null)
             {
                 _logger.Warn("OCR client not available.");
                 _notifications.NotifyFailure();
@@ -196,7 +196,9 @@ namespace Suterusu.Services
                     imageData = downscaled;
                 }
             }
-            string prompt = config.Ocr?.Prompt;
+            string prompt = string.IsNullOrWhiteSpace(config.Ocr?.Prompt)
+                ? "Recognize all text from this image."
+                : config.Ocr.Prompt;
 
             if (config.Ocr?.UseClipboardPrompt == true)
             {
@@ -206,6 +208,12 @@ namespace Suterusu.Services
                     prompt = clipboardResult.Text;
                     _logger.Debug("Using clipboard text as OCR prompt");
                 }
+            }
+
+            if (config.Ocr?.Provider == OcrProvider.VlmChat)
+            {
+                await ExecuteVlmChatAsync(config, imageData, prompt, cancellationToken).ConfigureAwait(false);
+                return;
             }
 
             _logger.Debug("calling OCR client");
@@ -224,6 +232,62 @@ namespace Suterusu.Services
 
             LastAiResponse = ocrResult.Content;
             _logger.Info($"OCR completed. Press {config.CopyLastResponseHotkey} to copy to clipboard.");
+            _notifications.NotifySuccess();
+        }
+
+        private async Task ExecuteVlmChatAsync(
+            AppConfig config,
+            byte[] imageData,
+            string prompt,
+            CancellationToken cancellationToken)
+        {
+            _logger.Debug("building VLM chat messages");
+            IReadOnlyList<ChatRequestMessage> messages = _chatHistory.BuildVisionRequestMessages(prompt, imageData);
+
+            _logger.Debug("calling AI client with screenshot image");
+            AiResponseResult aiResult = await _aiClient.SendVisionAsync(config, messages, cancellationToken).ConfigureAwait(false);
+
+            if (!aiResult.Success)
+            {
+                _logger.Error($"VLM Chat failed: {aiResult.Error}");
+
+                if (config.Ocr?.VlmFallbackEnabled == true)
+                {
+                    var fallbackProvider = config.Ocr.VlmFallbackProvider;
+                    if (fallbackProvider != OcrProvider.VlmChat)
+                    {
+                        _logger.Info($"Falling back to OCR provider: {fallbackProvider}");
+                        IOcrClient fallbackClient = OcrClientFactory.Create(_logger, config, fallbackProvider);
+                        if (fallbackClient != null)
+                        {
+                            AiSingleAttemptResult fallbackResult = await fallbackClient.RunOcrAsync(
+                                imageData,
+                                prompt,
+                                config.Ocr.TimeoutMs,
+                                cancellationToken).ConfigureAwait(false);
+
+                            if (fallbackResult.Success)
+                            {
+                                LastAiResponse = fallbackResult.Content;
+                                _logger.Info($"OCR fallback completed. Press {config.CopyLastResponseHotkey} to copy to clipboard.");
+                                _notifications.NotifySuccess();
+                                return;
+                            }
+
+                            _logger.Error($"OCR fallback failed: {fallbackResult.Error}");
+                        }
+                    }
+                }
+
+                _notifications.NotifyFailure();
+                return;
+            }
+
+            string storedPrompt = "[Image] " + prompt;
+            _chatHistory.AppendSuccessfulTurn(storedPrompt, aiResult.Content);
+            LastAiResponse = aiResult.Content;
+
+            _logger.Info($"VLM Chat response received via model {aiResult.ModelUsed}. Press {config.CopyLastResponseHotkey} to copy to clipboard.");
             _notifications.NotifySuccess();
         }
 

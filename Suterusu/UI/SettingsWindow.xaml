@@ -197,8 +197,12 @@
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
-                                                <TextBlock Grid.Column="0" Text="{Binding Model}" FontWeight="SemiBold" />
-                                                <TextBlock Grid.Column="1" Text="{Binding Name}" Foreground="{StaticResource MutedTextBrush}" Margin="12,0,0,0" />
+                                                 <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                                     <TextBlock Text="{Binding Model}" FontWeight="SemiBold" />
+                                                     <TextBlock Text=" • " Foreground="{StaticResource MutedTextBrush}" Margin="8,0,0,0" />
+                                                     <TextBlock Text="{Binding Capability}" Foreground="{StaticResource MutedTextBrush}" />
+                                                 </StackPanel>
+                                                 <TextBlock Grid.Column="1" Text="{Binding Name}" Foreground="{StaticResource MutedTextBrush}" Margin="12,0,0,0" />
                                             </Grid>
                                         </DataTemplate>
                                     </ListBox.ItemTemplate>
@@ -241,9 +245,15 @@
                                                      Click="OnFetchEntryModels"
                                                      Margin="8,0,0,0"
                                                      Padding="8,2" />
-                                         </StackPanel>
-                                         <ComboBox x:Name="CboEntryModel" IsEditable="True" />
-                                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                          </StackPanel>
+                                          <ComboBox x:Name="CboEntryModel" IsEditable="True" />
+                                         <TextBlock Style="{StaticResource LabelStyle}" Text="Capability" />
+                                         <ComboBox x:Name="CboEntryCapability" HorizontalAlignment="Left" Width="140">
+                                             <ComboBoxItem Content="Auto" Tag="Auto" IsSelected="True" />
+                                             <ComboBoxItem Content="Text only" Tag="TextOnly" />
+                                             <ComboBoxItem Content="Vision" Tag="Vision" />
+                                         </ComboBox>
+                                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                                             <Button Style="{StaticResource PrimaryButtonStyle}"   Content="Confirm" Click="OnConfirmEntry" />
                                             <Button Style="{StaticResource SecondaryButtonStyle}" Content="Discard" Click="OnDiscardEntry" Margin="6,0,0,0" />
                                         </StackPanel>
@@ -513,12 +523,26 @@
                                     <TextBlock Style="{StaticResource HintStyle}" Margin="0,4,0,0" Text="Uses PaddleX basic serving POST /ocr with PP-OCRv5/General OCR pipelines." />
                                 </StackPanel>
 
-                                <!-- Windows OneOCR settings -->
-                                <StackPanel x:Name="PnlOneOcrSettings" Visibility="Collapsed">
-                                    <TextBlock Style="{StaticResource LabelStyle}" Text="Runtime Folder (optional)" />
-                                    <TextBox x:Name="TxtOcrOneOcrRuntimePath" />
-                                    <TextBlock Style="{StaticResource HintStyle}" Text="Leave blank to auto-detect Snipping Tool. Folder must contain oneocr.dll, oneocr.onemodel, and onnxruntime.dll." />
-                                    <TextBlock Style="{StaticResource HintStyle}" Margin="0,4,0,0" Text="Local/offline. Uses Windows 11 Snipping Tool OneOCR runtime in-process." />
+                                 <!-- Windows OneOCR settings -->
+                                 <StackPanel x:Name="PnlOneOcrSettings" Visibility="Collapsed">
+                                     <TextBlock Style="{StaticResource LabelStyle}" Text="Runtime Folder (optional)" />
+                                     <TextBox x:Name="TxtOcrOneOcrRuntimePath" />
+                                     <TextBlock Style="{StaticResource HintStyle}" Text="Leave blank to auto-detect Snipping Tool. Folder must contain oneocr.dll, oneocr.onemodel, and onnxruntime.dll." />
+                                     <TextBlock Style="{StaticResource HintStyle}" Margin="0,4,0,0" Text="Local/offline. Uses Windows 11 Snipping Tool OneOCR runtime in-process." />
+                                 </StackPanel>
+
+                                <!-- VLM Chat settings -->
+                                <StackPanel x:Name="PnlVlmChatSettings" Visibility="Collapsed">
+                                    <TextBlock Style="{StaticResource HintStyle}" Text="Sends screenshot directly to configured chat models. Requires a vision-capable model entry." />
+                                    <CheckBox x:Name="ChkVlmFallbackEnabled"
+                                              Content="Fallback to OCR provider when no vision model works"
+                                              Margin="0,8,0,0"
+                                              Checked="OnVlmFallbackEnabledChanged"
+                                              Unchecked="OnVlmFallbackEnabledChanged" />
+                                    <StackPanel x:Name="PnlVlmFallbackProvider" Visibility="Collapsed">
+                                        <TextBlock Style="{StaticResource LabelStyle}" Text="Fallback Provider" />
+                                        <ComboBox x:Name="CboVlmFallbackProvider" HorizontalAlignment="Left" Width="240" />
+                                    </StackPanel>
                                 </StackPanel>
 
                                 <!-- Windows OCR settings -->

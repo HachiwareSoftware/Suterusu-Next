@@ -9,7 +9,15 @@ namespace Suterusu.Services
             if (config.Ocr == null || !config.Ocr.Enabled)
                 return null;
 
-            switch (config.Ocr.Provider)
+            return Create(logger, config, config.Ocr.Provider);
+        }
+
+        public static IOcrClient Create(ILogger logger, AppConfig config, OcrProvider provider)
+        {
+            if (config.Ocr == null)
+                return null;
+
+            switch (provider)
             {
                 case OcrProvider.LlamaCpp:
                     return new LlamaCppOcrClient(

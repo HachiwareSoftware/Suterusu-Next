@@ -7,7 +7,7 @@ namespace Suterusu.Models
     {
         public string Model { get; set; }
 
-        public List<ChatMessage> Messages { get; set; }
+        public List<ChatRequestMessage> Messages { get; set; }
 
         public double Temperature { get; set; } = 0.7;
 

@@ -8,6 +8,7 @@ namespace Suterusu.Models
         public string BaseUrl { get; set; }
         public string ApiKey  { get; set; }
         public string Model   { get; set; }
+        public ModelCapability Capability { get; set; }
 
         public ModelEntry Clone()
         {
@@ -16,7 +17,8 @@ namespace Suterusu.Models
                 Name    = Name,
                 BaseUrl = BaseUrl,
                 ApiKey  = ApiKey,
-                Model   = Model
+                Model   = Model,
+                Capability = Capability
             };
         }
 
@@ -27,7 +29,8 @@ namespace Suterusu.Models
                 Name   = Name,
                 BaseUrl = BaseUrl,
                 ApiKey  = ApiKey,
-                Models  = new List<string> { Model }
+                Models  = new List<string> { Model },
+                Capability = Capability
             };
         }
     }

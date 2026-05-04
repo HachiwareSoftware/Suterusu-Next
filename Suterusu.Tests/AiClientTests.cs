@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Newtonsoft.Json.Linq;
 using Suterusu.Configuration;
 using Suterusu.Models;
 using Suterusu.Services;
@@ -45,6 +46,85 @@ namespace Suterusu.Tests
             }
         }
 
+        [Fact]
+        public async Task SendVisionAsync_SerializesImageUrlContent()
+        {
+            var handler = new CapturingHandler((request, call) => Success("vision response"));
+            using (var client = new AiClient(new TestLogger(), handler))
+            {
+                var config = CreateVisionConfig();
+                var messages = new List<ChatRequestMessage>
+                {
+                    new ChatRequestMessage("system", "sys"),
+                    new ChatRequestMessage("user", new object[]
+                    {
+                        ChatMessageContentPart.TextPart("read this"),
+                        ChatMessageContentPart.ImageUrlPart("data:image/png;base64,abc")
+                    })
+                };
+
+                AiResponseResult result = await client.SendVisionAsync(config, messages, CancellationToken.None);
+
+                Assert.True(result.Success);
+                JObject json = JObject.Parse(handler.Bodies[0]);
+                Assert.Equal("vision-model", json["model"]?.ToString());
+                Assert.Equal("read this", json["messages"]?[1]?["content"]?[0]?["text"]?.ToString());
+                Assert.Equal("data:image/png;base64,abc", json["messages"]?[1]?["content"]?[1]?["image_url"]?["url"]?.ToString());
+            }
+        }
+
+        [Fact]
+        public async Task SendVisionAsync_SkipsTextOnlyEntries()
+        {
+            var handler = new CapturingHandler((request, call) => Success("unused"));
+            using (var client = new AiClient(new TestLogger(), handler))
+            {
+                var config = CreateVisionConfig();
+                config.ModelPriority[0].Capability = ModelCapability.TextOnly;
+
+                AiResponseResult result = await client.SendVisionAsync(
+                    config,
+                    new List<ChatRequestMessage> { new ChatRequestMessage("user", "x") },
+                    CancellationToken.None);
+
+                Assert.False(result.Success);
+                Assert.Equal("No vision-capable model entries are configured.", result.Error);
+                Assert.Empty(handler.Bodies);
+            }
+        }
+
+        [Fact]
+        public async Task SendVisionAsync_FallsBackFromAutoToVisionEntry()
+        {
+            var handler = new CapturingHandler((request, call) => call == 1
+                ? new HttpResponseMessage(HttpStatusCode.BadRequest)
+                {
+                    Content = new StringContent("{\"error\":{\"message\":\"model does not support image input\"}}", Encoding.UTF8, "application/json")
+                }
+                : Success("vision response"));
+
+            using (var client = new AiClient(new TestLogger(), handler))
+            {
+                var config = CreateVisionConfig();
+                config.ModelPriority.Insert(0, new ModelEntry
+                {
+                    Name = "Auto endpoint",
+                    BaseUrl = "https://auto.test/v1",
+                    Model = "auto-model",
+                    Capability = ModelCapability.Auto
+                });
+
+                AiResponseResult result = await client.SendVisionAsync(
+                    config,
+                    new List<ChatRequestMessage> { new ChatRequestMessage("user", "x") },
+                    CancellationToken.None);
+
+                Assert.True(result.Success);
+                Assert.Equal("vision-model", result.ModelUsed);
+                Assert.Equal(2, handler.Bodies.Count);
+            }
+        }
+
         private static AppConfig CreateConfig(int timeoutMs)
         {
             return new AppConfig
@@ -63,6 +143,38 @@ namespace Suterusu.Tests
                 HistoryLimit = 10,
                 SystemPrompt = "You are a helpful assistant."
             }.Normalize();
+        }
+
+        private static AppConfig CreateVisionConfig()
+        {
+            return new AppConfig
+            {
+                ModelPriority = new List<ModelEntry>
+                {
+                    new ModelEntry
+                    {
+                        Name = "Vision endpoint",
+                        BaseUrl = "https://vision.test/v1",
+                        Model = "vision-model",
+                        Capability = ModelCapability.Vision
+                    }
+                },
+                MultiRequestMode = MultiRequestMode.Sequential,
+                MultiRequestTimeoutMs = 500,
+                HistoryLimit = 10,
+                SystemPrompt = "You are a helpful assistant."
+            }.Normalize();
+        }
+
+        private static HttpResponseMessage Success(string content)
+        {
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(
+                    "{\"choices\":[{\"message\":{\"content\":\"" + content + "\"}}]}",
+                    Encoding.UTF8,
+                    "application/json")
+            };
         }
 
         private sealed class DelayedSuccessHandler : HttpMessageHandler
@@ -85,6 +197,26 @@ namespace Suterusu.Tests
                         Encoding.UTF8,
                         "application/json")
                 };
+            }
+        }
+
+        private sealed class CapturingHandler : HttpMessageHandler
+        {
+            private readonly Func<HttpRequestMessage, int, HttpResponseMessage> _responseFactory;
+            private int _calls;
+
+            public List<string> Bodies { get; } = new List<string>();
+
+            public CapturingHandler(Func<HttpRequestMessage, int, HttpResponseMessage> responseFactory)
+            {
+                _responseFactory = responseFactory;
+            }
+
+            protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            {
+                _calls++;
+                Bodies.Add(await request.Content.ReadAsStringAsync().ConfigureAwait(false));
+                return _responseFactory(request, _calls);
             }
         }
 

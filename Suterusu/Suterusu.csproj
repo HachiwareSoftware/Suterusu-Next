@@ -93,6 +93,8 @@
     <Compile Include="Models\ChatCompletionRequest.cs" />
     <Compile Include="Models\ChatCompletionResponse.cs" />
     <Compile Include="Models\ChatMessage.cs" />
+    <Compile Include="Models\ChatMessageContentPart.cs" />
+    <Compile Include="Models\ChatRequestMessage.cs" />
     <Compile Include="Models\CdpTargetInfo.cs" />
     <Compile Include="Models\CliProxyHealthResult.cs" />
     <Compile Include="Models\CliProxyReleaseInfo.cs" />
@@ -102,6 +104,7 @@
     <Compile Include="Models\EndpointPreset.cs" />
     <Compile Include="Models\EndpointConfig.cs" />
     <Compile Include="Models\ModelEntry.cs" />
+    <Compile Include="Models\ModelCapability.cs" />
     <Compile Include="Models\GlobalHotkey.cs" />
     <Compile Include="Models\HotkeyBinding.cs" />
     <Compile Include="Models\HotkeyActionResult.cs" />

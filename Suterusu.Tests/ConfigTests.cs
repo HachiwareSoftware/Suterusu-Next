@@ -11,6 +11,14 @@ namespace Suterusu.Tests
         private static ModelEntry ValidEntry(string url = "https://api.openai.com/v1", string model = "gpt-5.4-mini") =>
             new ModelEntry { Name = "Test", BaseUrl = url, ApiKey = "", Model = model };
 
+        [Fact]
+        public void ModelEntry_DefaultCapability_IsAuto()
+        {
+            var entry = new ModelEntry();
+
+            Assert.Equal(ModelCapability.Auto, entry.Capability);
+        }
+
         // -----------------------------------------------------------------------
         // CreateDefault
         // -----------------------------------------------------------------------
@@ -647,6 +655,26 @@ namespace Suterusu.Tests
         {
             var ocr = OcrSettings.CreateDefault();
             Assert.Equal(string.Empty, ocr.OneOcrRuntimePath);
+        }
+
+        [Fact]
+        public void OcrSettings_CreateDefault_VlmFallback_IsDisabled()
+        {
+            var ocr = OcrSettings.CreateDefault();
+
+            Assert.False(ocr.VlmFallbackEnabled);
+            Assert.NotEqual(OcrProvider.VlmChat, ocr.VlmFallbackProvider);
+        }
+
+        [Fact]
+        public void Normalize_Ocr_VlmFallbackProvider_DoesNotAllowVlmChat()
+        {
+            var config = AppConfig.CreateDefault();
+            config.Ocr.VlmFallbackProvider = OcrProvider.VlmChat;
+
+            config.Normalize();
+
+            Assert.NotEqual(OcrProvider.VlmChat, config.Ocr.VlmFallbackProvider);
         }
 
         [Fact]
