@@ -426,7 +426,7 @@ namespace Suterusu.Tests
         }
 
         [Fact]
-        public void Normalize_AddsCliProxyModelEntry_WhenCliProxyEnabled()
+        public void Normalize_DoesNotAddCliProxyModelEntry_WhenCliProxyEnabled()
         {
             var config = AppConfig.CreateDefault();
             config.ModelPriority = new List<ModelEntry>();
@@ -438,21 +438,11 @@ namespace Suterusu.Tests
 
             config.Normalize();
 
-            Assert.Equal(2, config.ModelPriority.Count);
-            Assert.Contains(config.ModelPriority, entry =>
-                entry.Name == CliProxySettings.GeneratedModelEntryName
-                && entry.BaseUrl == "http://127.0.0.1:8317/v1"
-                && entry.Model == CliProxySettings.DefaultCodexModel
-                && entry.ApiKey == "secret");
-            Assert.Contains(config.ModelPriority, entry =>
-                entry.Name == CliProxySettings.GeminiModelEntryName
-                && entry.BaseUrl == "http://127.0.0.1:8317/v1"
-                && entry.Model == CliProxySettings.DefaultGeminiModel
-                && entry.ApiKey == "secret");
+            Assert.Empty(config.ModelPriority);
         }
 
         [Fact]
-        public void Normalize_GeminiProviderControlsLoginModel_NotGeneratedEntries()
+        public void Normalize_GeminiProviderControlsLoginModel_WithoutGeneratedEntries()
         {
             var config = AppConfig.CreateDefault();
             config.ModelPriority = new List<ModelEntry>();
@@ -464,9 +454,7 @@ namespace Suterusu.Tests
             config.Normalize();
 
             Assert.Equal(CliProxySettings.DefaultGeminiModel, config.CliProxy.Model);
-            Assert.Equal(2, config.ModelPriority.Count);
-            Assert.Contains(config.ModelPriority, entry => entry.Name == CliProxySettings.GeneratedModelEntryName);
-            Assert.Contains(config.ModelPriority, entry => entry.Name == CliProxySettings.GeminiModelEntryName);
+            Assert.Empty(config.ModelPriority);
         }
 
         [Fact]
@@ -523,7 +511,7 @@ namespace Suterusu.Tests
         }
 
         [Fact]
-        public void Normalize_UsesBracketedIpv6LoopbackInCliProxyModelEntry()
+        public void Normalize_CliProxyEnabled_DoesNotDependOnModelPriorityEntries()
         {
             var config = AppConfig.CreateDefault();
             config.ModelPriority = new List<ModelEntry>();
@@ -532,8 +520,8 @@ namespace Suterusu.Tests
 
             config.Normalize();
 
-            Assert.Equal(2, config.ModelPriority.Count);
-            Assert.All(config.ModelPriority, entry => Assert.Equal("http://[::1]:8317/v1", entry.BaseUrl));
+            Assert.Empty(config.ModelPriority);
+            Assert.True(config.HasConfiguredChatTarget());
         }
 
         [Fact]

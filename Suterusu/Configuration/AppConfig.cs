@@ -303,7 +303,7 @@ namespace Suterusu.Configuration
 
             NormalizeCliProxySettings();
             NormalizeCdpSettings();
-            SyncCliProxyModelEntry();
+            RemoveGeneratedCliProxyModelEntries();
 
             return this;
         }
@@ -428,7 +428,7 @@ namespace Suterusu.Configuration
                 || host.Equals("::1", StringComparison.OrdinalIgnoreCase);
         }
 
-        private void SyncCliProxyModelEntry()
+        private void RemoveGeneratedCliProxyModelEntries()
         {
             if (ModelPriority == null)
                 ModelPriority = new List<ModelEntry>();
@@ -436,28 +436,6 @@ namespace Suterusu.Configuration
             ModelPriority = ModelPriority
                 .Where(entry => !IsGeneratedCliProxyModelEntry(entry))
                 .ToList();
-
-            if (CliProxy?.Enabled != true)
-                return;
-
-            string baseUrl = CliProxy.GetApiBaseUrl();
-            string apiKey = CliProxy.ApiKey;
-
-            ModelPriority.Insert(0, new ModelEntry
-            {
-                Name = CliProxySettings.GeminiModelEntryName,
-                BaseUrl = baseUrl,
-                ApiKey = apiKey,
-                Model = CliProxySettings.DefaultGeminiModel
-            });
-
-            ModelPriority.Insert(0, new ModelEntry
-            {
-                Name = CliProxySettings.GeneratedModelEntryName,
-                BaseUrl = baseUrl,
-                ApiKey = apiKey,
-                Model = CliProxySettings.DefaultCodexModel
-            });
         }
 
         private static bool IsGeneratedCliProxyModelEntry(ModelEntry entry)
