@@ -241,6 +241,7 @@ namespace Suterusu.UI
             modelsUrl += "/models";
 
             string apiKey = GetApiKey();
+            _logger.Debug($"Fetching models from {modelsUrl}. Auth header present: {!string.IsNullOrWhiteSpace(apiKey)}.");
 
             _fetchButton.IsEnabled = false;
             _fetchButton.Content = "Fetching...";
@@ -257,11 +258,13 @@ namespace Suterusu.UI
                     using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10)))
                     {
                         var response = await client.GetAsync(modelsUrl, cts.Token);
+                        _logger.Debug($"Model fetch response: {(int)response.StatusCode} {response.ReasonPhrase}.");
                         response.EnsureSuccessStatusCode();
 
                         string json = await response.Content.ReadAsStringAsync();
                         var obj = JObject.Parse(json);
                         var data = obj["data"] as JArray;
+                        _logger.Debug($"Model fetch parsed. data_count={data?.Count ?? 0}.");
 
                         _modelCombo.Items.Clear();
                         _reasoningEffortsByModel.Clear();
@@ -274,8 +277,28 @@ namespace Suterusu.UI
                                 {
                                     _modelCombo.Items.Add(id);
                                     var efforts = ExtractReasoningEfforts(item).ToList();
+                                    _logger.Debug($"Model '{id}' direct reasoning levels: {FormatReasoningEfforts(efforts)}.");
+                                    if (efforts.Count == 0)
+                                    {
+                                        string detailsUrl = GetModelDetailsUrl(item, modelsUrl);
+                                        if (!string.IsNullOrWhiteSpace(detailsUrl))
+                                        {
+                                            _logger.Debug($"Model '{id}' has details URL for reasoning metadata: {detailsUrl}.");
+                                            var detailEfforts = await FetchReasoningEffortsFromDetailsAsync(client, detailsUrl, _logger, cts.Token);
+                                            efforts.AddRange(detailEfforts.Where(e => !efforts.Any(existing => string.Equals(existing, e, StringComparison.OrdinalIgnoreCase))));
+                                            _logger.Debug($"Model '{id}' details reasoning levels: {FormatReasoningEfforts(detailEfforts)}.");
+                                        }
+                                        else
+                                        {
+                                            _logger.Debug($"Model '{id}' has no direct reasoning levels and no details URL.");
+                                        }
+                                    }
+
                                     if (efforts.Count > 0)
+                                    {
                                         _reasoningEffortsByModel[id] = efforts;
+                                        _logger.Debug($"Model '{id}' final reasoning levels: {FormatReasoningEfforts(efforts)}.");
+                                    }
                                 }
                             }
                         }
@@ -295,10 +318,12 @@ namespace Suterusu.UI
             }
             catch (OperationCanceledException)
             {
+                _logger.Warn($"Model fetch timed out from {modelsUrl}.");
                 _showValidation("Model fetch timed out.");
             }
             catch (Exception ex)
             {
+                _logger.Error($"Failed to fetch models from {modelsUrl}.", ex);
                 _showValidation($"Failed to fetch models: {ex.Message}");
             }
             finally
@@ -481,7 +506,9 @@ namespace Suterusu.UI
         private void ResetReasoningOptions(string selected)
         {
             selected = string.IsNullOrWhiteSpace(selected) ? DefaultReasoningEffort : selected.Trim();
-            string model = _modelCombo.Text?.Trim() ?? string.Empty;
+            string model = (_modelCombo.SelectedItem as string)?.Trim();
+            if (string.IsNullOrWhiteSpace(model))
+                model = _modelCombo.Text?.Trim() ?? string.Empty;
             var options = new List<string> { DefaultReasoningEffort };
 
             if (!string.IsNullOrWhiteSpace(model) && _reasoningEffortsByModel.TryGetValue(model, out var fetched))
@@ -494,20 +521,21 @@ namespace Suterusu.UI
             }
 
             options.Add(CustomReasoningEffort);
+            _logger.Debug($"Reasoning dropdown reset for model '{model}'. selected='{selected}', options={FormatReasoningEfforts(options)}.");
 
             _reasoningCombo.Items.Clear();
             foreach (string option in options)
-                _reasoningCombo.Items.Add(option);
+                _reasoningCombo.Items.Add(CreateReasoningOption(option));
 
             string matched = options.FirstOrDefault(o => string.Equals(o, selected, StringComparison.OrdinalIgnoreCase));
             if (matched != null)
             {
-                _reasoningCombo.SelectedItem = matched;
+                SelectReasoningOption(matched);
                 _reasoningCustomBox.Text = string.Empty;
             }
             else
             {
-                _reasoningCombo.SelectedItem = CustomReasoningEffort;
+                SelectReasoningOption(CustomReasoningEffort);
                 _reasoningCustomBox.Text = selected;
             }
 
@@ -521,12 +549,52 @@ namespace Suterusu.UI
             if (IsCustomReasoningSelected())
                 return _reasoningCustomBox.Text?.Trim() ?? string.Empty;
 
-            return (_reasoningCombo.SelectedItem as string)?.Trim() ?? DefaultReasoningEffort;
+            return GetReasoningOptionValue(_reasoningCombo.SelectedItem) ?? DefaultReasoningEffort;
         }
 
         private bool IsCustomReasoningSelected()
         {
-            return string.Equals(_reasoningCombo.SelectedItem as string, CustomReasoningEffort, StringComparison.OrdinalIgnoreCase);
+            return string.Equals(GetReasoningOptionValue(_reasoningCombo.SelectedItem), CustomReasoningEffort, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static ComboBoxItem CreateReasoningOption(string value)
+        {
+            return new ComboBoxItem
+            {
+                Content = ToReasoningDisplayName(value),
+                Tag = value
+            };
+        }
+
+        private void SelectReasoningOption(string value)
+        {
+            foreach (var item in _reasoningCombo.Items)
+            {
+                if (string.Equals(GetReasoningOptionValue(item), value, StringComparison.OrdinalIgnoreCase))
+                {
+                    _reasoningCombo.SelectedItem = item;
+                    return;
+                }
+            }
+        }
+
+        private static string GetReasoningOptionValue(object item)
+        {
+            if (item is ComboBoxItem comboItem)
+                return comboItem.Tag as string ?? comboItem.Content as string;
+
+            return item as string;
+        }
+
+        private static string ToReasoningDisplayName(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return "Default";
+
+            if (string.Equals(value, CustomReasoningEffort, StringComparison.OrdinalIgnoreCase))
+                return "Custom...";
+
+            return char.ToUpperInvariant(value[0]) + value.Substring(1);
         }
 
         public static IReadOnlyList<string> ExtractReasoningEfforts(JToken modelMetadata)
@@ -537,8 +605,84 @@ namespace Suterusu.UI
             AddReasoningValues(values, modelMetadata?["supported_reasoning_efforts"]);
             AddReasoningValues(values, modelMetadata?["supported_reasoning_levels"]);
             AddReasoningValues(values, modelMetadata?["reasoning"]?["levels"]);
+            AddReasoningValues(values, modelMetadata?["reasoning"]?["efforts"]);
+            AddReasoningValues(values, modelMetadata?["reasoning"]?["values"]);
+            AddReasoningValues(values, modelMetadata?["reasoning"]?["supported_efforts"]);
             AddReasoningValues(values, modelMetadata?["capabilities"]?["reasoning_efforts"]);
+            AddReasoningValues(values, modelMetadata?["capabilities"]?["reasoning"]?["levels"]);
+            AddReasoningValues(values, modelMetadata?["capabilities"]?["reasoning"]?["efforts"]);
+
             return values;
+        }
+
+        private static async Task<IReadOnlyList<string>> FetchReasoningEffortsFromDetailsAsync(HttpClient client, string detailsUrl, ILogger logger, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var response = await client.GetAsync(detailsUrl, cancellationToken);
+                logger.Debug($"Reasoning details fetch response from {detailsUrl}: {(int)response.StatusCode} {response.ReasonPhrase}.");
+                if (!response.IsSuccessStatusCode)
+                {
+                    return new List<string>();
+                }
+
+                string json = await response.Content.ReadAsStringAsync();
+                var efforts = ExtractReasoningEffortsFromDetails(JObject.Parse(json));
+                logger.Debug($"Reasoning details fetch parsed from {detailsUrl}: {FormatReasoningEfforts(efforts)}.");
+                return efforts;
+            }
+            catch (Exception ex)
+            {
+                logger.Warn($"Reasoning details fetch failed from {detailsUrl}: {ex.Message}");
+                return new List<string>();
+            }
+        }
+
+        public static IReadOnlyList<string> ExtractReasoningEffortsFromDetails(JToken details)
+        {
+            var values = new List<string>();
+            AddReasoningEffortsFromToken(values, details);
+            AddReasoningEffortsFromToken(values, details?["data"]);
+            AddReasoningEffortsFromToken(values, details?["result"]);
+
+            var endpoints = details?["data"]?["endpoints"] as JArray
+                ?? details?["endpoints"] as JArray;
+            if (endpoints != null)
+            {
+                foreach (var endpoint in endpoints)
+                    AddReasoningEffortsFromToken(values, endpoint);
+            }
+
+            return values;
+        }
+
+        private static void AddReasoningEffortsFromToken(List<string> values, JToken token)
+        {
+            foreach (string effort in ExtractReasoningEfforts(token))
+                AddReasoningValue(values, effort);
+        }
+
+        private static string GetModelDetailsUrl(JToken modelMetadata, string modelsUrl)
+        {
+            string rawDetailsUrl = (string)modelMetadata?["links"]?["details"]
+                ?? (string)modelMetadata?["details_url"]
+                ?? (string)modelMetadata?["detailsUrl"];
+
+            if (string.IsNullOrWhiteSpace(rawDetailsUrl))
+                return null;
+
+            rawDetailsUrl = rawDetailsUrl.Trim();
+            if (Uri.TryCreate(rawDetailsUrl, UriKind.Absolute, out var absoluteUri))
+                return absoluteUri.ToString();
+
+            if (!Uri.TryCreate(modelsUrl, UriKind.Absolute, out var modelsUri))
+                return null;
+
+            var root = new Uri(modelsUri.GetLeftPart(UriPartial.Authority));
+            if (Uri.TryCreate(root, rawDetailsUrl, out var relativeUri))
+                return relativeUri.ToString();
+
+            return null;
         }
 
         private static void AddReasoningValues(List<string> values, JToken token)
@@ -565,8 +709,24 @@ namespace Suterusu.UI
             if (string.IsNullOrWhiteSpace(value))
                 return;
 
+            AddReasoningValue(values, value);
+        }
+
+        private static void AddReasoningValue(List<string> values, string value)
+        {
             if (!values.Any(v => string.Equals(v, value, StringComparison.OrdinalIgnoreCase)))
                 values.Add(value);
+        }
+
+        private static string FormatReasoningEfforts(IEnumerable<string> efforts)
+        {
+            if (efforts == null)
+                return "[]";
+
+            var values = efforts.Where(e => !string.IsNullOrWhiteSpace(e)).ToList();
+            return values.Count == 0
+                ? "[]"
+                : "[" + string.Join(", ", values) + "]";
         }
     }
 }
