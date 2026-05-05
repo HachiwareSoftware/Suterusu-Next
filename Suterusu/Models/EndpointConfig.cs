@@ -9,5 +9,6 @@ namespace Suterusu.Models
         public string ApiKey { get; set; }
         public List<string> Models { get; set; }
         public ModelCapability Capability { get; set; }
+        public string ReasoningEffort { get; set; }
     }
 }

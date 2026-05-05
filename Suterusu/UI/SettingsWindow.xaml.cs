@@ -44,7 +44,8 @@ namespace Suterusu.UI
             _modelEditor = new ModelPriorityEditor(
                 LstPriority, PnlEntryEdit, LblEntryEditTitle,
                 TxtEntryName, TxtEntryBaseUrl, PwdEntryApiKey,
-                TxtEntryApiKey, CboEntryModel, CboEntryCapability, BtnFetchEntryModels, CboEntryPreset,
+                TxtEntryApiKey, CboEntryModel, CboEntryCapability, CboEntryReasoning, TxtEntryReasoningCustom,
+                BtnFetchEntryModels, CboEntryPreset,
                 ShowValidation, HideValidation,
                 () => _configManager.Current?.CliProxy?.ApiKey ?? string.Empty,
                 _logger);

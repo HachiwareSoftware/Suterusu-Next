@@ -9,6 +9,7 @@ namespace Suterusu.Models
         public string ApiKey  { get; set; }
         public string Model   { get; set; }
         public ModelCapability Capability { get; set; }
+        public string ReasoningEffort { get; set; } = "default";
 
         public ModelEntry Clone()
         {
@@ -18,7 +19,8 @@ namespace Suterusu.Models
                 BaseUrl = BaseUrl,
                 ApiKey  = ApiKey,
                 Model   = Model,
-                Capability = Capability
+                Capability = Capability,
+                ReasoningEffort = ReasoningEffort
             };
         }
 
@@ -30,7 +32,8 @@ namespace Suterusu.Models
                 BaseUrl = BaseUrl,
                 ApiKey  = ApiKey,
                 Models  = new List<string> { Model },
-                Capability = Capability
+                Capability = Capability,
+                ReasoningEffort = ReasoningEffort
             };
         }
     }

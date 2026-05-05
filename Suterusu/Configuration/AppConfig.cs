@@ -323,6 +323,8 @@ namespace Suterusu.Configuration
             {
                 if (!Enum.IsDefined(typeof(ModelCapability), entry.Capability))
                     entry.Capability = ModelCapability.Auto;
+
+                entry.ReasoningEffort = NormalizeReasoningEffort(entry.ReasoningEffort);
             }
 
             NormalizeCliProxySettings();
@@ -450,6 +452,13 @@ namespace Suterusu.Configuration
             return host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase)
                 || host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
                 || host.Equals("::1", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string NormalizeReasoningEffort(string value)
+        {
+            return string.IsNullOrWhiteSpace(value)
+                ? "default"
+                : value.Trim();
         }
 
         private void RemoveGeneratedCliProxyModelEntries()

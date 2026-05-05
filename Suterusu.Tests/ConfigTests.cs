@@ -19,6 +19,14 @@ namespace Suterusu.Tests
             Assert.Equal(ModelCapability.Auto, entry.Capability);
         }
 
+        [Fact]
+        public void ModelEntry_DefaultReasoningEffort_IsDefault()
+        {
+            var entry = new ModelEntry();
+
+            Assert.Equal("default", entry.ReasoningEffort);
+        }
+
         // -----------------------------------------------------------------------
         // CreateDefault
         // -----------------------------------------------------------------------
@@ -128,6 +136,25 @@ namespace Suterusu.Tests
             config.Normalize();
 
             Assert.Equal(2, config.ModelPriority.Count);
+        }
+
+        [Fact]
+        public void Normalize_ModelEntryReasoningEffort_TrimsAndDefaults()
+        {
+            var config = new AppConfig
+            {
+                ModelPriority = new List<ModelEntry>
+                {
+                    new ModelEntry { Name = "A", BaseUrl = "https://api.openai.com", Model = "a", ReasoningEffort = " high " },
+                    new ModelEntry { Name = "B", BaseUrl = "https://api.openai.com", Model = "b", ReasoningEffort = "   " }
+                },
+                HistoryLimit = 5
+            };
+
+            config.Normalize();
+
+            Assert.Equal("high", config.ModelPriority[0].ReasoningEffort);
+            Assert.Equal("default", config.ModelPriority[1].ReasoningEffort);
         }
 
         // -----------------------------------------------------------------------

@@ -288,6 +288,12 @@ namespace Suterusu.Services
                     Messages = new List<ChatRequestMessage>(messages)
                 };
 
+                if (!string.IsNullOrWhiteSpace(endpoint.ReasoningEffort)
+                    && !endpoint.ReasoningEffort.Equals("default", StringComparison.OrdinalIgnoreCase))
+                {
+                    request.ReasoningEffort = endpoint.ReasoningEffort.Trim();
+                }
+
                 string json    = JsonSettings.SerializeCompact(request);
                 _logger.Debug($"serialized request JSON: {json}");
 

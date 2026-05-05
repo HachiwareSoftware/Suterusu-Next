@@ -12,5 +12,7 @@ namespace Suterusu.Models
         public double Temperature { get; set; } = 0.7;
 
         public int? MaxTokens { get; set; }
+
+        public string ReasoningEffort { get; set; }
     }
 }

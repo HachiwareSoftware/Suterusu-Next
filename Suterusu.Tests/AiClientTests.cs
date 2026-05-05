@@ -125,6 +125,48 @@ namespace Suterusu.Tests
             }
         }
 
+        [Fact]
+        public async Task SendAsync_SerializesNonDefaultReasoningEffort()
+        {
+            var handler = new CapturingHandler((request, call) => Success("reasoned"));
+            using (var client = new AiClient(new TestLogger(), handler))
+            {
+                var config = CreateConfig(500);
+                config.ModelPriority[0].ReasoningEffort = "high";
+                var messages = new List<ChatMessage>
+                {
+                    new ChatMessage { Role = "user", Content = "hello" }
+                };
+
+                AiResponseResult result = await client.SendAsync(config, messages, CancellationToken.None);
+
+                Assert.True(result.Success);
+                JObject json = JObject.Parse(handler.Bodies[0]);
+                Assert.Equal("high", json["reasoning_effort"]?.ToString());
+            }
+        }
+
+        [Fact]
+        public async Task SendAsync_OmitsDefaultReasoningEffort()
+        {
+            var handler = new CapturingHandler((request, call) => Success("plain"));
+            using (var client = new AiClient(new TestLogger(), handler))
+            {
+                var config = CreateConfig(500);
+                config.ModelPriority[0].ReasoningEffort = "default";
+                var messages = new List<ChatMessage>
+                {
+                    new ChatMessage { Role = "user", Content = "hello" }
+                };
+
+                AiResponseResult result = await client.SendAsync(config, messages, CancellationToken.None);
+
+                Assert.True(result.Success);
+                JObject json = JObject.Parse(handler.Bodies[0]);
+                Assert.Null(json["reasoning_effort"]);
+            }
+        }
+
         private static AppConfig CreateConfig(int timeoutMs)
         {
             return new AppConfig

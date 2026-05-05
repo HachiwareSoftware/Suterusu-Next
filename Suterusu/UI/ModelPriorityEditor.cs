@@ -25,6 +25,8 @@ namespace Suterusu.UI
         private readonly TextBox _keyTextBox;
         private readonly ComboBox _modelCombo;
         private readonly ComboBox _capabilityCombo;
+        private readonly ComboBox _reasoningCombo;
+        private readonly TextBox _reasoningCustomBox;
         private readonly Button _fetchButton;
         private readonly ComboBox _presetCombo;
         private readonly Action<string> _showValidation;
@@ -35,6 +37,10 @@ namespace Suterusu.UI
         private int _editingIndex = -2; // -2 = not editing, -1 = adding, >= 0 = editing
         private bool _isApplyingPreset;
         private bool _isSyncingPreset;
+        private readonly Dictionary<string, List<string>> _reasoningEffortsByModel = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+
+        private const string DefaultReasoningEffort = "default";
+        private const string CustomReasoningEffort = "custom...";
 
         private static readonly EndpointPreset CustomPreset =
             new EndpointPreset { Name = "Custom", BaseUrl = string.Empty, DefaultModel = string.Empty, RequiresApiKey = false };
@@ -49,6 +55,8 @@ namespace Suterusu.UI
             TextBox keyTextBox,
             ComboBox modelCombo,
             ComboBox capabilityCombo,
+            ComboBox reasoningCombo,
+            TextBox reasoningCustomBox,
             Button fetchButton,
             ComboBox presetCombo,
             Action<string> showValidation,
@@ -65,6 +73,8 @@ namespace Suterusu.UI
             _keyTextBox = keyTextBox;
             _modelCombo = modelCombo;
             _capabilityCombo = capabilityCombo;
+            _reasoningCombo = reasoningCombo;
+            _reasoningCustomBox = reasoningCustomBox;
             _fetchButton = fetchButton;
             _presetCombo = presetCombo;
             _showValidation = showValidation;
@@ -75,6 +85,10 @@ namespace Suterusu.UI
             _presetCombo.ItemsSource = EndpointPreset.GetPresets();
             _presetCombo.SelectionChanged += OnPresetChanged;
             _urlBox.TextChanged += OnUrlChanged;
+            _modelCombo.SelectionChanged += OnModelSelectionChanged;
+            _modelCombo.LostFocus += OnModelLostFocus;
+            _reasoningCombo.SelectionChanged += OnReasoningChanged;
+            ResetReasoningOptions(DefaultReasoningEffort);
         }
 
         public bool IsEditing => _editingIndex >= -1;
@@ -156,6 +170,7 @@ namespace Suterusu.UI
             string apiKey = GetApiKey();
             string model = _modelCombo.Text.Trim();
             ModelCapability capability = GetCapability();
+            string reasoningEffort = GetReasoningEffort();
 
             if (string.IsNullOrWhiteSpace(url))
             {
@@ -168,6 +183,12 @@ namespace Suterusu.UI
                 return;
             }
 
+            if (string.IsNullOrWhiteSpace(reasoningEffort))
+            {
+                _showValidation("Custom reasoning level is required.");
+                return;
+            }
+
             if (string.IsNullOrWhiteSpace(name))
                 name = "Custom";
 
@@ -177,7 +198,8 @@ namespace Suterusu.UI
                 BaseUrl = url.TrimEnd('/'),
                 ApiKey = apiKey,
                 Model = model,
-                Capability = capability
+                Capability = capability,
+                ReasoningEffort = reasoningEffort
             };
 
             if (_editingIndex == -1)
@@ -242,20 +264,32 @@ namespace Suterusu.UI
                         var data = obj["data"] as JArray;
 
                         _modelCombo.Items.Clear();
+                        _reasoningEffortsByModel.Clear();
                         if (data != null)
                         {
                             foreach (var item in data)
                             {
                                 string id = (string)item["id"];
                                 if (!string.IsNullOrWhiteSpace(id))
+                                {
                                     _modelCombo.Items.Add(id);
+                                    var efforts = ExtractReasoningEfforts(item).ToList();
+                                    if (efforts.Count > 0)
+                                        _reasoningEffortsByModel[id] = efforts;
+                                }
                             }
                         }
 
                         if (_modelCombo.Items.Count > 0)
+                        {
                             _modelCombo.SelectedIndex = 0;
+                            ResetReasoningOptions(DefaultReasoningEffort);
+                        }
                         else
+                        {
+                            ResetReasoningOptions(DefaultReasoningEffort);
                             _showValidation("No models returned. Enter model name manually.");
+                        }
                     }
                 }
             }
@@ -327,7 +361,9 @@ namespace Suterusu.UI
             _keyTextBox.Text = string.Empty;
             _modelCombo.Text = string.Empty;
             _modelCombo.Items.Clear();
+            _reasoningEffortsByModel.Clear();
             SetCapability(ModelCapability.Auto);
+            ResetReasoningOptions(DefaultReasoningEffort);
 
             _isSyncingPreset = true;
             _presetCombo.SelectedIndex = -1;
@@ -343,6 +379,7 @@ namespace Suterusu.UI
             _modelCombo.Items.Clear();
             _modelCombo.Text = entry.Model ?? string.Empty;
             SetCapability(entry.Capability);
+            ResetReasoningOptions(string.IsNullOrWhiteSpace(entry.ReasoningEffort) ? DefaultReasoningEffort : entry.ReasoningEffort.Trim());
 
             var matchedPreset = _presetCombo.Items
                 .OfType<EndpointPreset>()
@@ -416,6 +453,120 @@ namespace Suterusu.UI
             }
 
             _capabilityCombo.SelectedIndex = 0;
+        }
+
+        private void OnModelSelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            UpdateReasoningOptionsForCurrentModel(preserveCurrent: false);
+        }
+
+        private void OnModelLostFocus(object sender, RoutedEventArgs e)
+        {
+            UpdateReasoningOptionsForCurrentModel(preserveCurrent: true);
+        }
+
+        private void OnReasoningChanged(object sender, SelectionChangedEventArgs e)
+        {
+            _reasoningCustomBox.Visibility = IsCustomReasoningSelected()
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+
+        private void UpdateReasoningOptionsForCurrentModel(bool preserveCurrent)
+        {
+            string current = preserveCurrent ? GetReasoningEffort() : DefaultReasoningEffort;
+            ResetReasoningOptions(current);
+        }
+
+        private void ResetReasoningOptions(string selected)
+        {
+            selected = string.IsNullOrWhiteSpace(selected) ? DefaultReasoningEffort : selected.Trim();
+            string model = _modelCombo.Text?.Trim() ?? string.Empty;
+            var options = new List<string> { DefaultReasoningEffort };
+
+            if (!string.IsNullOrWhiteSpace(model) && _reasoningEffortsByModel.TryGetValue(model, out var fetched))
+            {
+                foreach (string effort in fetched)
+                {
+                    if (!options.Any(o => string.Equals(o, effort, StringComparison.OrdinalIgnoreCase)))
+                        options.Add(effort);
+                }
+            }
+
+            options.Add(CustomReasoningEffort);
+
+            _reasoningCombo.Items.Clear();
+            foreach (string option in options)
+                _reasoningCombo.Items.Add(option);
+
+            string matched = options.FirstOrDefault(o => string.Equals(o, selected, StringComparison.OrdinalIgnoreCase));
+            if (matched != null)
+            {
+                _reasoningCombo.SelectedItem = matched;
+                _reasoningCustomBox.Text = string.Empty;
+            }
+            else
+            {
+                _reasoningCombo.SelectedItem = CustomReasoningEffort;
+                _reasoningCustomBox.Text = selected;
+            }
+
+            _reasoningCustomBox.Visibility = IsCustomReasoningSelected()
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+
+        private string GetReasoningEffort()
+        {
+            if (IsCustomReasoningSelected())
+                return _reasoningCustomBox.Text?.Trim() ?? string.Empty;
+
+            return (_reasoningCombo.SelectedItem as string)?.Trim() ?? DefaultReasoningEffort;
+        }
+
+        private bool IsCustomReasoningSelected()
+        {
+            return string.Equals(_reasoningCombo.SelectedItem as string, CustomReasoningEffort, StringComparison.OrdinalIgnoreCase);
+        }
+
+        public static IReadOnlyList<string> ExtractReasoningEfforts(JToken modelMetadata)
+        {
+            var values = new List<string>();
+            AddReasoningValues(values, modelMetadata?["reasoning_efforts"]);
+            AddReasoningValues(values, modelMetadata?["reasoning_effort"]);
+            AddReasoningValues(values, modelMetadata?["supported_reasoning_efforts"]);
+            AddReasoningValues(values, modelMetadata?["supported_reasoning_levels"]);
+            AddReasoningValues(values, modelMetadata?["reasoning"]?["levels"]);
+            AddReasoningValues(values, modelMetadata?["capabilities"]?["reasoning_efforts"]);
+            return values;
+        }
+
+        private static void AddReasoningValues(List<string> values, JToken token)
+        {
+            if (token == null || token.Type == JTokenType.Null)
+                return;
+
+            if (token.Type == JTokenType.Array)
+            {
+                foreach (var item in token)
+                    AddReasoningValues(values, item);
+                return;
+            }
+
+            if (token.Type == JTokenType.Object)
+            {
+                AddReasoningValues(values, token["levels"]);
+                AddReasoningValues(values, token["values"]);
+                AddReasoningValues(values, token["supported"]);
+                return;
+            }
+
+            string value = token.ToString().Trim();
+            if (string.IsNullOrWhiteSpace(value))
+                return;
+
+            if (!values.Any(v => string.Equals(v, value, StringComparison.OrdinalIgnoreCase)))
+                values.Add(value);
         }
     }
 }
