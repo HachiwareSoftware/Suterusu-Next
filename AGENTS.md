@@ -1,473 +1,323 @@
 # AGENTS.md
 
-Dev/agent ref for Suterusu-Next repo.
+Suterusu-Next repo brain. Caveman style. Substance exact.
 
----
+## Project
 
-## What this project is
+Windows headless app. C# mostly. Main app .NET Framework 4.8. Clipboard ↔ AI, screenshot/OCR, VLM screenshot, CDP browser script injection, CLIProxyAPI helper.
 
-Suterusu-Next: headless Windows bg utility, **C# / .NET Framework 4.8**. Bridges clipboard ↔ any OpenAI-compatible API. Interaction via global hotkeys (configurable):
+Default hotkeys:
 
-| Default Key | Action |
-|-------------|--------|
-| F6  | Clear chat history |
-| F7  | Read clipboard, send to AI |
-| F8  | Copy AI response to clipboard |
-| F12 | Quit |
+- `F6` clear chat history.
+- `F7` send clipboard to AI.
+- `F8` copy last AI response.
+- `F12` quit.
+- `Shift+F7` OCR/screenshot.
 
-AI done → notify via **FlashWindow** (taskbar flash), **CircleDot** (WinForms overlay), or **Nothing**. Config: `config.json` next to exe. WPF settings UI via `--open-settings` CLI arg.
+Run headless normally. `--open-settings` opens WPF settings. `--debug` enables console log. Config file beside exe: `config.json`.
 
-Multi-endpoint dispatch: **Sequential**, **RoundRobin**, **Fastest**.
+## Hard Rules
 
----
+- Windows-only.
+- Main `Suterusu.csproj` old-style .NET Framework. Explicit compile includes. New `.cs` file? Add to csproj.
+- Build main solution with VS MSBuild, not `dotnet build`.
+- Tests use `dotnet test` after MSBuild.
+- If build copy fails, running `Suterusu.exe` locks `bin/Debug/Suterusu.exe`. Stop process, rebuild.
+- Leave `.memory/` and `test_ocr.png` untracked unless user says commit.
+- No destructive git. No amend unless asked.
 
-## Repository layout
+## Build/Test
 
-```
-Suterusu-Next.sln
-│
-├── Suterusu/                          Main app (WinExe, .NET 4.8, old-style ToolsVersion=15.0 csproj)
-│   ├── Program.cs                     [STAThread] Main(); routes --open-settings vs headless path
-│   ├── Application/
-│   │   └── HeadlessApplicationContext.cs   ApplicationContext subclass; owns all services + lifetime
-│   ├── Bootstrap/
-│   │   ├── ConsoleManager.cs               AllocConsole / FreeConsole for --debug
-│   │   └── StartupOptions.cs               Parses --debug, --open-settings CLI flags
-│   ├── Configuration/
-│   │   ├── AppConfig.cs                    POCO config; CreateDefault(), Normalize(), Validate()
-│   │   ├── ConfigManager.cs                Load / save config.json; backup on corruption
-│   │   ├── HotkeyBindingHelper.cs          Parse / normalize / validate hotkey binding strings
-│   │   ├── JsonSettings.cs                 Newtonsoft.Json wrappers (snake_case, indented/compact)
-│   │   ├── MultiRequestMode.cs             Enum: RoundRobin | Sequential | Fastest
-│   │   └── NotificationMode.cs             Enum: FlashWindow | CircleDot | Nothing
-│   ├── Hooks/
-│   │   └── KeyboardHook.cs                 WH_KEYBOARD_LL low-level hook; fires HotkeyTriggered
-│   ├── Interop/
-│   │   ├── NativeMethods.cs                All Win32 P/Invoke declarations (single source of truth)
-│   │   └── VirtualDesktopHelper.cs         COM IVirtualDesktopManager; moves overlay to current desktop
-│   ├── Models/
-│   │   ├── ChatCompletionRequest.cs        OpenAI API request DTO
-│   │   ├── ChatCompletionResponse.cs       OpenAI API response DTO (Choice, ApiError)
-│   │   ├── ChatMessage.cs                  {Role, Content} pair
-│   │   ├── EndpointConfig.cs               {Name, BaseUrl, ApiKey, List<string> Models}
-│   │   ├── EndpointPreset.cs               Hard-coded provider presets (OpenAI/Anthropic/OpenRouter/Ollama/llama.cpp/Custom)
-│   │   ├── GlobalHotkey.cs                 Enum: ClearHistory | SendClipboard | CopyLastResponse | QuitApplication
-│   │   ├── HotkeyBinding.cs                Value type: PrimaryKey + modifier booleans; ToDisplayString()
-│   │   ├── ModelEntry.cs                   {Name, BaseUrl, ApiKey, Model}; ToEndpointConfig()
-│   │   └── Results/
-│   │       ├── AiResponseResult.cs         {Success, Content, ModelUsed, Error}
-│   │       ├── AiSingleAttemptResult.cs    {Success, Content, Error}
-│   │       ├── ClipboardReadResult.cs      {Success, Text, Error}
-│   │       ├── ClipboardWriteResult.cs     {Success, Error}
-│   │       ├── HotkeyActionResult.cs       {Success, Error}
-│   │       ├── QueuedClipboardRequest.cs   Empty marker/sentinel for ConcurrentQueue
-│   │       └── SaveConfigResult.cs         {Success, Error}
-│   ├── Notifications/
-│   │   ├── INotificationService.cs         NotifySuccess() / NotifyFailure()
-│   │   ├── NotificationServiceFactory.cs   Create(AppConfig) → correct implementation
-│   │   ├── FlashWindowNotificationService.cs  EnumWindows-based taskbar flash
-│   │   ├── CircleDotNotificationService.cs    WinForms STA overlay dot with virtual desktop support
-│   │   └── NullNotificationService.cs         No-op
-│   ├── Services/
-│   │   ├── AiClient.cs                     HttpClient wrapper; Sequential/RoundRobin/Fastest dispatch
-│   │   ├── ChatHistory.cs                  Bounded conversation context; trim-to-limit
-│   │   ├── ClipboardAiController.cs        Orchestrates F6/F7/F8; ConcurrentQueue + Interlocked processor
-│   │   ├── ClipboardService.cs             Win32 clipboard read/write with retry (5×50ms)
-│   │   ├── ILogger.cs                      Debug/Info/Warn/Error interface
-│   │   └── NLogLogger.cs                   NLog adapter; file always on, console in --debug
-│   └── UI/
-│       ├── SettingsWindow.xaml             Dark-themed WPF settings UI (460×780)
-│       └── SettingsWindow.xaml.cs          Code-behind: load/save config, preset matching, hotkey capture
-│
-├── Suterusu.Tests/                    xUnit test project (SDK-style csproj, net48)
-│   ├── AiClientTests.cs               Timeout/fallback behavior (1 async test)
-│   ├── ChatHistoryTests.cs            History trim, system prompt, Reset, UpdateConfiguration (20 tests)
-│   ├── ConfigTests.cs                 CreateDefault, Normalize, Validate, hotkey parsing (~30 tests)
-│   ├── NotificationFactoryTests.cs    Factory creates correct types, NullService no-throw (8 tests)
-│   └── ResultTypeTests.cs             All 6 result types Ok/Fail invariants (32 tests)
-│
-└── plugins/                           Plugin artifacts (compiled only, no source in workspace)
-    └── Suterusu.Plugins.Sample.CustomSelector/
-        └── bin/{Debug,Release}/
-            ├── manifest.json          Plugin metadata (id, type, entryPoint, dependencies)
-            ├── Suterusu.Contract.dll  Plugin contract assembly
-            └── Suterusu.Plugins.Sample.CustomSelector.dll
-```
-
----
-
-## Build
-
-`Suterusu.csproj`: **old-style ToolsVersion 15.0**. Needs **Visual Studio MSBuild** — `dotnet build` fails (unresolved NuGet packages).
+Build:
 
 ```powershell
-# Build (Debug)
-& "E:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe" `
-    "Suterusu-Next.sln" /t:Build /p:Configuration=Debug /v:minimal
-
-# Build (Release)
-& "E:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe" `
-    "Suterusu-Next.sln" /t:Build /p:Configuration=Release /v:minimal
-
-# Restore only
-& "E:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe" `
-    "Suterusu-Next.sln" /t:Restore /v:minimal
+& "E:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe" "Suterusu-Next.sln" /t:Build /p:Configuration=Debug /v:minimal
 ```
 
-Output: `Suterusu\bin\Debug\Suterusu.exe`
-
-NuGet packages:
-- `Newtonsoft.Json 13.0.3`
-- `NLog 6.1.2`
-
-Framework refs: `System`, `System.Core`, `System.Net.Http`, `System.Windows.Forms`, `System.Drawing`, `PresentationCore`, `PresentationFramework`, `WindowsBase`, `System.Xaml`
-
----
-
-## Tests
-
-SDK-style test project; **can** use `dotnet` CLI, must build via MSBuild first (refs main project output).
+Test after build:
 
 ```powershell
-# Run all tests (after MSBuild build)
 dotnet test "Suterusu.Tests\Suterusu.Tests.csproj" --no-build --configuration Debug
 ```
 
-Expected: **82 tests, 0 failures**. Run full suite after any change.
+Expected current tests: about `189` pass.
 
-Test packages: `xunit 2.6.6`, `xunit.runner.visualstudio 2.5.6`, `Moq 4.20.72`, `Microsoft.NET.Test.Sdk 17.8.0`
+Release build same MSBuild, `Configuration=Release`.
 
----
+## .NET 10 Helper
 
-## Entry point: Program.cs
+`Suterusu.WindowsAiOcr/` = Windows AI OCR helper. Targets `net10.0-windows10.0.26100.0`. VS 2022 MSBuild 17.x cannot build .NET 10 SDK. Helper built separate:
 
-`[STAThread] static void Main(string[] args)`:
-
-1. `StartupOptions.Parse(args)`
-2. `ConsoleManager.AllocDebugConsole()` or `FreeHeadlessConsole()`
-3. `NLogLogger.Configure(options.DebugEnabled)` — one-time setup
-4. If `--open-settings`: new `ConfigManager` → load config → new `System.Windows.Application` → `SettingsWindow.ShowDialog()` → return
-5. Else: `Application.EnableVisualStyles()` → `new HeadlessApplicationContext(options)` → `Application.Run(context)`
-6. Fatal exceptions → `MessageBox.Show` (debug mode only)
-
----
-
-## Architecture notes
-
-### Service wiring
-
-`HeadlessApplicationContext` constructs all. No IoC — manual wiring. Constructor sequence:
-
-1. `ConfigManager` (`"Suterusu.Config"`)
-2. `_config = _configManager.LoadOrCreateDefault()`
-3. `ClipboardService` (`"Suterusu.Clipboard"`)
-4. `AiClient` (`"Suterusu.AI"`)
-5. `NotificationServiceFactory.Create(_config)`
-6. `ChatHistory(_config.SystemPrompt, _config.HistoryLimit)`
-7. `ClipboardAiController` (all above services)
-8. `KeyboardHook` (`"Suterusu.Hook"`)
-9. `_keyboardHook.UpdateBindings(_config)`
-10. `_keyboardHook.HotkeyTriggered += HandleHotkey`
-11. `_keyboardHook.Install()`
-
-`HandleHotkey` routes:
-- `ClearHistory` → `_controller.ClearHistory()`
-- `SendClipboard` → `_controller.EnqueueClipboardSend()`
-- `CopyLastResponse` → `_controller.CopyLastResponseToClipboard()`
-- `QuitApplication` → `ExitThread()`
-
-`Dispose(bool)` disposes: `_keyboardHook`, `_controller`, `_aiClient`, `_notificationService` (if `IDisposable`).
-
-Add new service: add field, instantiate in constructor, dispose in `Dispose(bool)`.
-
-### Notification pipeline
-
-`NotificationServiceFactory.Create(AppConfig)` switches on `config.NotificationMode`:
-- `FlashWindow` → `new FlashWindowNotificationService(config.FlashWindowTarget, config.FlashWindowDurationMs)`
-- `CircleDot` → `new CircleDotNotificationService(config.CircleDotBlinkCount, config.CircleDotBlinkDurationMs)`
-- `Nothing` → `new NullNotificationService()`
-
-Pass full `AppConfig` to factory — never bare `NotificationMode` enum.
-
-### Win32 interop
-
-All `DllImport` in `Suterusu/Interop/NativeMethods.cs`. No scattering.
-
-Key declarations:
-- `user32.dll`: `SetWindowsHookEx`, `UnhookWindowsHookEx`, `CallNextHookEx`, `GetForegroundWindow`, `EnumWindows`, `IsWindowVisible`, `GetWindowThreadProcessId`, `FlashWindowEx`, `OpenClipboard`, `CloseClipboard`, `EmptyClipboard`, `GetClipboardData`, `SetClipboardData`, `IsClipboardFormatAvailable`, `SetWindowPos`, `GetWindowLong`, `SetWindowLong`, `ShowWindow`
-- `kernel32.dll`: `GetModuleHandle`, `AllocConsole`, `FreeConsole`, `OpenProcess`, `CloseHandle`, `QueryFullProcessImageNameA`, `GlobalLock`, `GlobalUnlock`, `GlobalAlloc`, `GlobalSize`
-- `ole32.dll`: `CoInitializeEx`, `CoUninitialize`, `CoCreateInstance`
-
-Key constants: `WH_KEYBOARD_LL=13`, `CF_UNICODETEXT=13`, `GMEM_MOVEABLE=0x0002`, `FLASHW_TRAY=2`, `FLASHW_STOP=0`, `HWND_TOPMOST=-1`, `WS_EX_TOOLWINDOW=0x80`, `WS_EX_NOACTIVATE=0x08000000`, `COINIT_APARTMENTTHREADED=0x2`
-
-`IVirtualDesktopManager` COM interface declared here (`[ComImport]`, GUID `A5CD92FF-29BE-454C-8D04-D82879FB3F1B`).
-
-### Configuration
-
-`AppConfig` → `config.json` via `JsonSettings.Serialize()` + `SnakeCaseNamingStrategy` (Newtonsoft.Json). PascalCase auto-converts: `ApiBaseUrl` → `api_base_url`. No `[JsonProperty]` needed.
-
-**All AppConfig properties and defaults:**
-
-| Property | Type | Default |
-|---|---|---|
-| `ModelPriority` | `List<ModelEntry>` | empty list |
-| `SystemPrompt` | `string` | `"You are a helpful assistant."` |
-| `HistoryLimit` | `int` | `10` |
-| `NotificationMode` | `NotificationMode` | `FlashWindow` |
-| `MultiRequestMode` | `MultiRequestMode` | `RoundRobin` |
-| `MultiRequestTimeoutMs` | `int` | `60000` |
-| `RoundRobinIndex` | `int` | `0` |
-| `FlashWindowTarget` | `string` | `"Chrome"` |
-| `FlashWindowDurationMs` | `int` | `1600` |
-| `CircleDotBlinkCount` | `int` | `3` |
-| `CircleDotBlinkDurationMs` | `int` | `600` |
-| `ClearHistoryHotkey` | `string` | `"F6"` |
-| `SendClipboardHotkey` | `string` | `"F7"` |
-| `CopyLastResponseHotkey` | `string` | `"F8"` |
-| `QuitApplicationHotkey` | `string` | `"F12"` |
-
-**Normalize clamp rules:**
-- `HistoryLimit`: 0–100
-- `FlashWindowDurationMs`: 1–10000 (default 1600)
-- `MultiRequestTimeoutMs`: 1–120000 (default 60000)
-- `CircleDotBlinkCount`: 1–10 (default 3)
-- `CircleDotBlinkDurationMs`: 200–5000
-- `RoundRobinIndex`: ≥0
-- `ModelPriority`: filter blank BaseUrl or Model
-- Hotkeys: normalize via `HotkeyBindingHelper.NormalizeBindingName`; if any duplicates, all four reset to defaults
-
-**Config pipeline:** `LoadOrCreateDefault` always calls `Normalize()`. `Save` calls `Validate()` → `Normalize()` → write JSON. Corruption → backup (`.bak.yyyyMMddHHmmss`), create default, save.
-
-Add new config property:
-1. Add to `AppConfig`
-2. Set default in `CreateDefault()`
-3. Add clamp in `Normalize()`
-4. No other changes needed
-
-### Hotkey binding system
-
-**`HotkeyBindingHelper`** (`Suterusu/Configuration/HotkeyBindingHelper.cs`) — all hotkey parsing/normalization.
-
-Binding strings format: `"Ctrl+Shift+K"`, `"F7"`, `"Alt+F4"`. Modifiers: CTRL/CONTROL, ALT, SHIFT, WIN/WINDOWS.
-
-Supported primary keys: A–Z, D0–D9, F1–F24, Tab, Space, Return, Back, Insert, Delete, Home, End, PageUp, PageDown, Up, Down, Left, Right.
-
-Key methods:
-- `TryParseBinding(string, out HotkeyBinding)` — parse string → `HotkeyBinding`; false on duplicate tokens/unknown key
-- `NormalizeBindingName(string, GlobalHotkey)` — parse + re-format canonical; fallback to default on failure
-- `IsSupportedBindingName(string)` — delegates to `TryParseBinding`
-- `GetDuplicateBindingErrors(string, string, string, string)` — detects duplicates across all four hotkeys
-- `TryBuildBindingFromKeyEvent(Key, ModifierKeys, out string)` — WPF `Key` → binding string (for settings UI capture); rejects Escape and standalone modifiers
-- `GetDefaultBinding(GlobalHotkey)` → `"F6"/"F7"/"F8"/"F12"`
-
-**`HotkeyBinding`** (`Suterusu/Models/HotkeyBinding.cs`) — immutable value type:
-- Properties: `Keys PrimaryKey`, `bool Control`, `bool Alt`, `bool Shift`, `bool Windows`
-- `ToDisplayString()` → `"Ctrl+Alt+Shift+Win+KEY"`
-- Full value equality (`Equals`, `GetHashCode`)
-
-**`KeyboardHook`** (`Suterusu/Hooks/KeyboardHook.cs`):
-- Installs `WH_KEYBOARD_LL` hook via `SetWindowsHookEx`
-- `_bindings: Dictionary<Keys, List<RegisteredHotkey>>` — keyed by primary key
-- `_pressedKeys: HashSet<Keys>` — repeat suppression; fires event once per keydown, clears on keyup
-- `UpdateBindings(AppConfig)` rebuilds bindings dict and clears pressed state
-- `HotkeyTriggered: EventHandler<GlobalHotkey>` — raised on message-pump thread
-- `_proc` field kept alive to prevent GC of delegate
-
-### Multi-request dispatch (AiClient)
-
-`AiClient.SendAsync` dispatches based on `config.MultiRequestMode`:
-
-- **Sequential**: try each `EndpointConfig` in order; return first success; collect all errors for failure
-- **RoundRobin**: start at `config.RoundRobinIndex`, wrap around; on success advance index to `(i+1) % count`; mutates `config.RoundRobinIndex` in place
-- **Fastest**: fire all endpoints concurrently with shared `CancellationTokenSource`; `Task.WhenAny` loop; first success cancels all others
-
-`ModelEntry.ToEndpointConfig()` wraps single model into `EndpointConfig` with `Models = [Model]`.
-
-Per-request timeout: `CancellationTokenSource.CancelAfter(config.MultiRequestTimeoutMs)`. URL construction: appends `/chat/completions` if URL doesn't already end with it.
-
-`AiClient(ILogger logger, HttpMessageHandler handler)` constructor supports test injection.
-
-### ClipboardAiController — async queue
-
-`ClipboardAiController` fields:
-- `ConcurrentQueue<QueuedClipboardRequest> _pendingRequests`
-- `int _processorRunning` — Interlocked flag (0=idle, 1=running)
-- `CancellationTokenSource _cts`
-- `string LastAiResponse` — most recent AI response
-
-`EnqueueClipboardSend()` → enqueue marker → `EnsureProcessorRunning()`:
-- `Interlocked.CompareExchange` sets flag atomically; if not running → `Task.Run(ProcessQueueAsync)`
-- `ProcessQueueAsync` drains queue serially; on empty: reset flag; if new items arrived during shutdown: re-call `EnsureProcessorRunning()`
-
-`ExecuteClipboardSendAsync`: read clipboard → build messages → AI call → update history + `LastAiResponse` → `NotifySuccess()`; on any error → `NotifyFailure()`.
-
-### CircleDot overlay — STA thread + virtual desktop
-
-`CircleDotNotificationService` runs dedicated STA background thread (`"CircleDot-STA"`) with `Application.Run(form)` loop.
-
-`OverlayForm` details:
-- `FormBorderStyle.None`, `BackColor=Magenta`, `TransparencyKey=Magenta` (chroma key transparency)
-- No taskbar icon, topmost
-- `OnHandleCreated`: sets `WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW` via `GetWindowLong`/`SetWindowLong`; `SetWindowPos(HWND_TOPMOST, SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE)`
-- `OnPaint`: anti-aliased ellipse with `Color.FromArgb(_alpha, _dotColor)`
-- Constants: `DotSize=14`, `MarginRight=20`, `MarginBottom=20`, `BlinkTimerMs=20`
-
-`VirtualDesktopHelper.MoveWindowToCurrentDesktop(hwnd)` called after form shown — moves overlay to current virtual desktop via `IVirtualDesktopManager`. `TryInitializeComForCurrentThread` on STA thread entry; `shouldUninitialize=true` only on `S_OK` (not `S_FALSE`/`RPC_E_CHANGED_MODE`).
-
-Blink animation: two `Timer` objects — close timer (total duration) + blink timer (20ms interval, alpha oscillation).
-
-`NotifySuccess()` → `Color.LimeGreen`; `NotifyFailure()` → `Color.Crimson`.
-
-### FlashWindow notification
-
-`FlashWindowNotificationService.FlashConfiguredWindow(count)`:
-1. `EnumWindows` callback — skip invisible windows
-2. Resolve exe name: `GetWindowThreadProcessId` → `OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION)` → `QueryFullProcessImageNameA` (lowercased filename, no path)
-3. `ShouldFlash(exeName, target)`: handles `"none"`/empty (false), `"all"` (true), exact/substring/with-extension match
-4. `FlashHwnd`: `FlashWindowEx(FLASHW_TRAY, count)` → `Thread.Sleep(_durationMs)` → `FlashWindowEx(FLASHW_STOP)`
-5. Stops after first match unless target is `"all"`
-
-`NotifySuccess()` → 3 flashes; `NotifyFailure()` → 5 flashes.
-
-Default target `"Chrome"` if blank; default duration `1600ms` if ≤0.
-
-### Result types
-
-All ops return typed result objects — no exceptions across service boundaries. Private constructors + static factory methods.
-
-| Type | Ok payload | Fail payload |
-|---|---|---|
-| `AiResponseResult` | `Content`, `ModelUsed` | `Error` |
-| `AiSingleAttemptResult` | `Content` | `Error` |
-| `ClipboardReadResult` | `Text` | `Error` |
-| `ClipboardWriteResult` | — | `Error` |
-| `HotkeyActionResult` | — | `Error` |
-| `SaveConfigResult` | — | `Error` |
-
-All: `bool Success` field. `Ok()` → Success=true, Error=null. `Fail(error)` → Success=false, payload=null.
-
-### ChatHistory
-
-- `HistoryLimit` counts turns (pairs), not messages. System message excluded from limit counting and from `Messages` property.
-- `BuildRequestMessages(userText)` — under lock: [system msg if non-empty/non-null] + existing turns + new user msg → `AsReadOnly()`
-- `AppendSuccessfulTurn(userText, assistantText)` — adds both, calls `TrimToLimit()`
-- `TrimToLimit()` — removes oldest user+assistant pairs until `_turns.Count <= HistoryLimit * 2`
-- `Reset(systemPrompt)` — clears turns, updates system prompt
-- `UpdateConfiguration(systemPrompt, historyLimit)` — updates both, trims
-
-### Logging
-
-`NLogLogger`:
-- Constructor: `public NLogLogger(string name)` — `LogManager.GetLogger(name)`
-- `Configure(bool consoleEnabled)` — one-time thread-safe NLog setup
-- File target: `logs/suterusu-yyMMdd-HHmmss.log` (timestamp fixed at startup, logs all Debug–Fatal)
-- Optional `ColoredConsoleTarget` when `consoleEnabled`
-- Format: `yyyy-MM-dd HH:mm:ss [logger] [LEVEL]: message{newline}{exception}`
-- Never use `Console.WriteLine` — always use `ILogger`
-
-Logger name conventions: `"Suterusu.App"`, `"Suterusu.Config"`, `"Suterusu.Clipboard"`, `"Suterusu.AI"`, `"Suterusu.Hook"`, `"Suterusu.Settings"`, `"Suterusu.Notification.Flash"`, `"Suterusu.Notification.CircleDot"`, `"Suterusu.Interop.VirtualDesktop"`
-
-### Settings UI (SettingsWindow)
-
-`SettingsWindow.xaml.cs` key fields:
-- `Dictionary<GlobalHotkey, string> _hotkeyBindings` — in-memory during editing
-- `int _editingEntryIndex` — `-2`=not editing, `-1`=adding new, `≥0`=editing existing
-- `bool _isApplyingEntryPreset`, `bool _isSyncingEntryPreset` — suppress feedback loop in preset↔URL sync
-- `GlobalHotkey? _capturingHotkey` — non-null when capturing key
-
-Constructor args: `ConfigManager configManager, ClipboardAiController controller = null, Action<AppConfig> configSaved = null`. Controller optional (null for `--open-settings`).
-
-Key methods:
-- `LoadConfig(AppConfig)` — populate all controls from config; clones `ModelEntry` items
-- `BuildConfigFromInputs()` → `AppConfig` from all controls
-- `TrySave()` → `BuildConfigFromInputs` → `Validate` → `Save` → `controller?.RefreshConfiguration()` → `configSaved?.Invoke()`
-
-Hotkey capture: `OnHotkeyButtonClick` → enter capture mode → `OnWindowPreviewKeyDown` → Escape cancels / valid non-modifier key calls `HotkeyBindingHelper.TryBuildBindingFromKeyEvent` → saves binding.
-
-XAML colors: `WindowBrush=#1E1E1E`, `PanelBrush=#252526`, `AccentBrush=#0E639C`, `ErrorBrush=#A1260D`.
-
-Layout sections: Model Priority (ListBox + CRUD + inline entry form) → Behavior (HistoryLimit, Hotkeys grid, Notification mode radios, MultiRequest mode radios, timeout, conditional Flash/CircleDot panels, System Prompt) → ValidationErrorBar (collapsed by default).
-
-`EndpointPreset.GetPresets()` populates `CboEntryPreset`. Hard-coded presets:
-
-| Name | BaseUrl | DefaultModel | RequiresApiKey |
-|---|---|---|---|
-| OpenAI | `https://api.openai.com/v1/chat/completions` | `gpt-5.4-mini` | true |
-| Anthropic | `https://api.anthropic.com/v1/chat/completions` | `claude-3-5-sonnet-20241022` | true |
-| OpenRouter | `https://openrouter.ai/api/v1/chat/completions` | `openai/gpt-5.4-mini` | true |
-| Ollama | `http://localhost:11434/v1/chat/completions` | `llama3.2` | false |
-| llama.cpp | `http://localhost:8080/v1/chat/completions` | `default` | false |
-| Custom | _(empty)_ | _(empty)_ | true |
-
-### Plugin system
-
-`Suterusu.Contract.dll` defines plugin contract interfaces. Plugins loaded from `plugins/` subdirectories, each with `manifest.json`:
-
-```json
-{
-  "id": "suterusu.plugins.sample.customselector",
-  "name": "Custom Selector Plugin",
-  "version": "1.0.0",
-  "type": "model-selector",
-  "entryPoint": "Suterusu.Plugins.Sample.CustomSelector.Plugin",
-  "dependencies": ["Suterusu.Contract"]
-}
+```powershell
+& "$env:USERPROFILE\.dotnet10\dotnet.exe" build "Suterusu.WindowsAiOcr\Suterusu.WindowsAiOcr.csproj"
 ```
 
-Plugin type `"model-selector"` in sample. Source not in workspace (compiled artifacts only in `plugins/*/bin/`).
+Output expected: `Suterusu/bin/Debug/WindowsAiOcr/Suterusu.WindowsAiOcr.exe`.
 
----
+## Layout
 
-## Cross-file dependency map
+- `Suterusu/` main app, old-style net48.
+- `Suterusu.Tests/` xUnit net48.
+- `Suterusu.WindowsAiOcr/` .NET 10 OCR helper.
+- `docs/ocr/README.md` OCR docs index. GitHub previews this.
+- `docs/ocr/*.md` one doc per OCR mode.
+- `docs/chat/reasoning_level.md` reasoning effort docs.
+- `.github/workflows/` CI/package.
 
-```
-Program.cs
-  ├── StartupOptions.Parse()
-  ├── ConsoleManager
-  ├── NLogLogger.Configure()
-  ├── ConfigManager → SettingsWindow (--open-settings path)
-  └── HeadlessApplicationContext
-        ├── ConfigManager → AppConfig
-        │     └── HotkeyBindingHelper (normalize/validate)
-        │           └── HotkeyBinding
-        ├── ClipboardService → NativeMethods (clipboard P/Invokes)
-        ├── AiClient → HttpClient → ChatCompletionRequest/Response/ChatMessage
-        ├── ChatHistory → ChatMessage
-        ├── NotificationServiceFactory → AppConfig.NotificationMode
-        │     ├── FlashWindowNotificationService → NativeMethods (EnumWindows, FlashWindowEx)
-        │     ├── CircleDotNotificationService → WinForms STA + VirtualDesktopHelper
-        │     │     └── VirtualDesktopHelper → NativeMethods (CoCreateInstance, IVirtualDesktopManager)
-        │     └── NullNotificationService
-        ├── ClipboardAiController
-        │     ├── ClipboardService
-        │     ├── AiClient
-        │     ├── ChatHistory
-        │     ├── ConfigManager (reads .Current for system prompt)
-        │     └── INotificationService
-        └── KeyboardHook → NativeMethods (WH_KEYBOARD_LL)
-              └── HotkeyBindingHelper (parse bindings)
+## Startup/Lifetime
 
-SettingsWindow (UI)
-  ├── ConfigManager (load/save)
-  ├── ClipboardAiController (optional RefreshConfiguration)
-  ├── HotkeyBindingHelper (normalize, TryBuildBindingFromKeyEvent)
-  ├── EndpointPreset (GetPresets for ComboBox)
-  └── AppConfig (Validate, Normalize, BuildConfigFromInputs)
-```
+`Program.cs` parses args, configures NLog, opens settings or starts `HeadlessApplicationContext`.
 
----
+`HeadlessApplicationContext` owns services. No IoC. Manual wiring. Add service = field + construct + refresh if config changes + dispose.
 
-## Key conventions
+Core services:
 
-- **Logging**: use `ILogger` / `NLogLogger`, never `Console.WriteLine`. Constructor receives logger name string (e.g. `"Suterusu.MyService"`).
-- **Background threads**: `ClipboardAiController` dispatches to `Task.Run`. Notification services called from background thread — `Thread.Sleep` in `NotifySuccess/Failure` is safe.
-- **STA for WinForms**: `CircleDotNotificationService` dedicates STA background thread for `Application.Run(form)` loop.
-- **No MVVM**: settings UI uses plain code-behind. No ViewModel layer.
-- **No IoC container**: manual wiring in `HeadlessApplicationContext`.
-- **Snake_case JSON**: enforced globally by `JsonSettings`; no `[JsonProperty]` annotations needed.
-- **Single P/Invoke source**: all `DllImport` in `NativeMethods.cs`.
-- **Result types**: all service operations return typed result objects; private constructors + static factory methods.
-- **Windows-only**: targets `net48` / `RuntimeIdentifiers=win`. No cross-platform abstractions.
-- **Hotkey repeat suppression**: `HashSet<Keys> _pressedKeys` in `KeyboardHook` fires event once per physical press.
-- **Config normalization pipeline**: always `Normalize()` after load; `Validate()` + `Normalize()` before save.
-- **`SettingsWindowManager.cs` does not exist**: `Program.cs` instantiates `SettingsWindow` directly for `--open-settings`.
+- `ConfigManager` load/save/current config.
+- `AiClient` chat dispatch.
+- `ChatHistory` bounded history, vision history.
+- `ClipboardAiController` hotkey actions, queue, OCR, VLM.
+- `KeyboardHook` global keyboard hook.
+- `NotificationServiceFactory` Flash/CircleDot/Nothing.
+- `CdpService` CDP worker/injector.
+- `CliProxyProcessManager` install/start/login/model flow.
+
+## Config
+
+Config class: `AppConfig` in `Suterusu/Configuration/AppConfig.cs`. JSON via `JsonSettings`, snake_case. Usually no `[JsonProperty]`.
+
+Add config field:
+
+1. Add property.
+2. Add `CreateDefault()` default.
+3. Add `Normalize()` trim/clamp/migrate.
+4. Add `Validate()` only if runtime-breaking invalid.
+5. Add `ConfigTests`.
+
+Normalize after load. Save = validate → normalize → write.
+
+## Chat Models
+
+`ModelEntry` → `EndpointConfig`.
+
+Fields matter:
+
+- `Name`
+- `BaseUrl`
+- `ApiKey`
+- `Model`
+- `Capability`: `Auto`, `TextOnly`, `Vision`.
+- `ReasoningEffort`: string, default `default`.
+
+Capability only affects VLM screenshot. Normal clipboard chat ignores.
+
+Reasoning:
+
+- `default` omits `reasoning_effort`.
+- Non-default sends exact `reasoning_effort` string.
+- UI title-cases labels (`Default`, `Custom...`). Stored/request values remain raw/lowercase when raw is lowercase.
+- Fetch Models uses explicit metadata only: direct fields or linked detail docs.
+- Never invent levels from model name, provider name, endpoint URL, or `supported_parameters` alone.
+- Debug logs in `ModelPriorityEditor`: fetch URL, auth present, HTTP status, data count, direct/detail levels, final dropdown options.
+
+## AiClient
+
+Modes:
+
+- `Sequential`: try ordered entries.
+- `RoundRobin`: start at `RoundRobinIndex`, advance on success.
+- `Fastest`: race endpoints, first success wins.
+
+`SendVisionAsync`: VLM screenshot path. Skips `TextOnly`. Tries `Vision` and `Auto`. Image-unsupported errors are recoverable fallback.
+
+URL suffix handling lives in `AiClient`; avoid caller duplication.
+
+## OCR
+
+Providers enum:
+
+- `LlamaCpp`
+- `Zai`
+- `Custom`
+- `HuggingFace`
+- `PaddleX`
+- `OneOcr`
+- `VlmChat`
+- `WindowsOcr`
+- `WindowsAi`
+
+Factory: `OcrClientFactory.cs`.
+
+Flow: `ClipboardAiController.ExecuteScreenOcrAsync()`:
+
+1. Capture region PNG.
+2. Optional downscale via `ImageResizer`.
+3. OCR prompt or clipboard-as-prompt.
+4. If `VlmChat`, call VLM flow.
+5. Else call `IOcrClient`.
+6. Store `LastAiResponse`, notify.
+
+Prompt-aware: llama.cpp, Z.ai, Hugging Face, Custom, VLM Chat.
+
+Prompt ignored: PaddleX, OneOCR, Windows OCR, Windows AI OCR.
+
+Docs: `docs/ocr/README.md` + provider files.
+
+### VLM Chat
+
+`VlmChat` sends screenshot to configured chat vision models, not OCR.
+
+- Chat `SystemPrompt` = system message.
+- OCR prompt = image instruction text.
+- History stores text only: `[Image] <prompt>`.
+- No image bytes in history.
+- Optional fallback OCR provider after all VLM models fail.
+
+### OneOCR
+
+Uses Snipping Tool OneOCR runtime via in-process C# P/Invoke.
+
+Needs: `oneocr.dll`, `oneocr.onemodel`, `onnxruntime.dll`. 64-bit process.
+
+Auto-detects Snipping Tool, copies files to app-local `OneOCR/` to bypass WindowsApps ACL.
+
+Files: `OneOcrClient`, `OneOcrNative`, `OneOcrRuntimeLocator`.
+
+### Windows OCR / Windows AI OCR
+
+`WindowsOcr`: in-process `Windows.Media.Ocr`, installed OCR languages required.
+
+`WindowsAi`: helper exe, Copilot+ PC/NPU intent, missing helper returns clear error.
+
+### PaddleX
+
+POST `{PaddleXUrl}/ocr`:
+
+- `file`: base64 PNG bytes.
+- `fileType`: `1`.
+- `visualize`: `false`.
+
+Parse `result.ocrResults[*].prunedResult.rec_texts` or `recTexts`.
+
+## CLIProxyAPI
+
+Dedicated settings tab. Config: `CliProxySettings`.
+
+Providers:
+
+- Codex/ChatGPT.
+- Gemini.
+
+Facts:
+
+- `CliProxyProcessManager` installs/starts/logins.
+- `BuildLoginArguments()` owns args.
+- Gemini login uses direct visible CLIProxyAPI flow because `--login` needs stdin prompts.
+- Codex can use no-browser path.
+- Connect-and-use does not test guessed default model; Gemini models churn.
+- Do not auto-insert or override `ModelPriority` entries.
+- User adds CLIProxyAPI as normal chat model entry via preset.
+- Preset URL: `http://127.0.0.1:8317/v1/chat/completions`.
+
+## CDP
+
+Config: `CdpSettings`.
+
+Facts:
+
+- Connect only to already-running CDP. Do not launch browser.
+- Background thread: `Suterusu-CDP`.
+- Logs to `logs/cdp-*.log` and main app log.
+- Connects all injectable page targets, not first tab only.
+- Skips DevTools/internal pages: `devtools://`, `chrome://`, `edge://`, `about:`.
+- Script root default: `js/events`.
+- Settings open creates `js/events/onconnect` and `js/events/onload`.
+- Event folders: `onload`, `onconnect`, `onclick`, `onkeydown`, etc.
+- Inject via `Page.addScriptToEvaluateOnNewDocument` + current-page eval.
+- Disk script change hash triggers reload.
+- Old persistent registration removed before replacement.
+- Wrapper runs immediately with idempotency marker. No delayed event-listener wrapper.
+
+## Settings UI
+
+WPF code-behind, no MVVM.
+
+Files:
+
+- `SettingsWindow.xaml`
+- `SettingsWindow.xaml.cs`
+- `ModelPriorityEditor.cs`
+- `OcrSettingsHelper.cs`
+- `CliProxyUiOrchestrator.cs`
+
+Model editor owns: presets, API key show/hide, Fetch Models, capability dropdown, reasoning dropdown/custom.
+
+Add setting:
+
+1. XAML control.
+2. Load in `LoadConfig()`.
+3. Save in `BuildConfigFromInputs()`.
+4. Visibility helper if provider-specific.
+5. Normalize/validate tests.
+
+## Hotkeys
+
+Central file: `HotkeyBindingHelper.cs`.
+
+Supported keys include letters, digits, F1-F24, nav keys, OEM punctuation (`OemPlus`, `OemMinus`, `OemComma`, `OemPeriod`, `Oem1`-`Oem8`, `Oem102`, `OemClear`).
+
+UI uses `TryBuildBindingFromKeyEvent`. Config uses `NormalizeBindingName` + `Validate`. Do not duplicate parser.
+
+## Logging
+
+Use `ILogger`. No `Console.WriteLine`.
+
+NLog:
+
+- File: `logs/suterusu-yyMMdd-HHmmss.log`.
+- Console only with `--debug`.
+- Format: timestamp, logger, level, message, exception.
+
+Common names: `Suterusu.App`, `Suterusu.Config`, `Suterusu.AI`, `Suterusu.OCR.*`, `Suterusu.CDP`, `Suterusu.CliProxy`, `Suterusu.Settings`.
+
+## Native Interop
+
+Win32 imports live in `Suterusu/Interop/NativeMethods.cs`.
+
+Rules:
+
+- Correct calling conventions.
+- Explicit UTF-8/native string handling where needed.
+- Free handles/buffers in `finally`.
+- Do not scatter `DllImport`.
+- OneOCR dynamic delegates allowed in `OneOcrNative` because exports loaded from runtime path.
+
+## Tests
+
+Project: `Suterusu.Tests`, xUnit.
+
+Areas:
+
+- `AiClientTests`: dispatch, VLM, reasoning request serialization.
+- `ConfigTests`: defaults/normalize/validate/migration.
+- `ReasoningMetadataTests`: reasoning metadata/detail extraction.
+- OCR tests: PaddleX, Windows OCR, OneOCR, VLM.
+- CLIProxy tests: login args, HTTP behavior, config.
+
+Always MSBuild first, then `dotnet test --no-build`.
+
+## Docs
+
+- `docs/ocr/README.md`: OCR overview.
+- `docs/ocr/*.md`: provider docs.
+- `docs/chat/reasoning_level.md`: reasoning effort docs.
+
+Docs-only commit with `[skip ci]` when user asks.
+
+## Git
+
+Recent work: OCR docs, reasoning metadata/debug fix, VLM Chat, OneOCR, PaddleX, CLIProxy Gemini/direct login, CDP event injection, OCR prompt handling.
+
+Common untracked keep out:
+
+- `.memory/`
+- `test_ocr.png`
